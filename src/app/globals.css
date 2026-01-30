@@ -1,26 +1,50 @@
 @import "tailwindcss";
 
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --background: #fafaf7;
+  --foreground: #1a1a1a;
+  --green-50: #f0f7f1;
+  --green-100: #dceede;
+  --green-200: #b8ddb9;
+  --green-300: #7fbf82;
+  --green-400: #4a9e4f;
+  --green-500: #2d7a32;
+  --green-600: #1f5c23;
+  --green-700: #1a4a1e;
+  --green-800: #143a17;
+  --green-900: #0f2e12;
+  --green-950: #091c0b;
 }
 
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
+  --color-green-50: var(--green-50);
+  --color-green-100: var(--green-100);
+  --color-green-200: var(--green-200);
+  --color-green-300: var(--green-300);
+  --color-green-400: var(--green-400);
+  --color-green-500: var(--green-500);
+  --color-green-600: var(--green-600);
+  --color-green-700: var(--green-700);
+  --color-green-800: var(--green-800);
+  --color-green-900: var(--green-900);
+  --color-green-950: var(--green-950);
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+  --font-serif: var(--font-playfair);
 }
 
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+}
+
+/* Subtle radial glow for hero backgrounds */
+.hero-glow {
+  background: radial-gradient(
+    ellipse 60% 50% at 50% 40%,
+    rgba(45, 122, 50, 0.06) 0%,
+    transparent 70%
+  );
 }

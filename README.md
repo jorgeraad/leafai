@@ -15,6 +15,15 @@ Task: Build a web app that allows you to connect to a folder in Google Drive and
   - Compare Kimi K2.5 vs. Claude Opus 4.5
   - Compare Claude Code to OpenCode
 
+## Frameworks & Infrastructure
+
+- **Bun** - JavaScript runtime for fast execution
+- **Vercel** - Deployment platform for hosting the application
+- **Vercel Workflows** (Beta) - Runs core AI agent logic
+- **AI SDK** - Main AI framework for integrating with AI model providers
+- **Supabase** - Authentication and database
+- **Google Docs API** - Integrates with Google Drive for document access
+
 ## Getting Started
 
 First, run the development server:
