@@ -1,4 +1,19 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Leaf AI
+
+Task: Build a web app that allows you to connect to a folder in Google Drive and then ask an AI agent any questions about the files in the folder.
+
+## Learning Goals
+- AI agents
+  - Document retrieval and tool use
+  - Context management?
+- Use new tech
+  - Google Docs API
+  - Vercel
+  - Vercel Workflows
+  - Bun
+- Explore models and CLIs
+  - Compare Kimi K2.5 vs. Claude Opus 4.5
+  - Compare Claude Code to OpenCode
 
 ## Getting Started
 
