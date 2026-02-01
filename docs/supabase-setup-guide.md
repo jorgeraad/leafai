@@ -24,7 +24,7 @@ This document walks through setting up Supabase for Leaf AI — from local devel
 ## 1. Prerequisites
 
 - **Docker Desktop** (or OrbStack / colima) — the Supabase CLI runs all services in Docker containers
-- **Bun** — used as the package manager and runtime for this project
+- **Bun** — used as the package manager and runtime for this project (also used to install the Supabase CLI globally)
 - **A Google Cloud account** — for setting up OAuth credentials
 - **A Supabase account** — sign up at [supabase.com](https://supabase.com)
 

@@ -1,60 +1,192 @@
 # Leaf AI
 
-Task: Build a web app that allows you to connect to a folder in Google Drive and then ask an AI agent any questions about the files in the folder.
+A Next.js web app that lets users sign in with Google, connect a Google Drive folder, and chat with an AI agent that uses the folder contents as context.
 
-## Learning Goals
-- AI agents
-  - Document retrieval and tool use
-  - Context management?
-- Use new tech
-  - Google Docs API
-  - Vercel
-  - Vercel Workflows
-  - Bun
-- Explore models and CLIs
-  - Compare Kimi K2.5 vs. Claude Opus 4.5
-  - Compare Claude Code to OpenCode
+See `docs/design-claude.md` for the full design document.
 
-## Frameworks & Infrastructure
+---
 
-- **Bun** - JavaScript runtime for fast execution
-- **Vercel** - Deployment platform for hosting the application
-- **Vercel Workflows** (Beta) - Runs core AI agent logic
-- **AI SDK** - Main AI framework for integrating with AI model providers
-- **Supabase** - Authentication and database
-- **Google Docs API** - Integrates with Google Drive for document access
+## Prerequisites
 
-## Getting Started
+| Requirement | Why |
+|---|---|
+| **Bun** | Package manager and runtime. Install from [bun.sh](https://bun.sh). |
+| **Docker** | Supabase local stack runs in containers. Install [Docker Desktop](https://www.docker.com/products/docker-desktop/), [OrbStack](https://orbstack.dev/), or colima. |
+| **Supabase CLI** | Manages the local Supabase stack. Install via `bun add -g supabase`. |
 
-First, run the development server:
+---
+
+## Quick Start (No Google Credentials Needed)
+
+This is the recommended path for **AI agents** and contributors who don't have Google OAuth credentials. It starts the full local stack (Supabase + Next.js) and uses email/password authentication — no Google OAuth setup required.
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+# 1. Install dependencies
+bun install
+
+# 2. Install Supabase CLI (if not already installed)
+bun add -g supabase
+
+# 3. Make sure Docker is running, then start the local Supabase stack
+supabase start
+
+# 4. Generate .env.local from supabase status output
+scripts/setup-env.sh
+
+# 5. Apply database migrations
+supabase db reset
+
+# 6. Start the dev server
+bun run dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+The app will be running at `http://localhost:3000`.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+### Creating a Test Account
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+The app supports email/password registration. Navigate to `/signup` and create an account — no email confirmation is required in local dev. A personal workspace is created automatically on first sign-up.
 
-## Learn More
+For programmatic/test usage, you can also use the Supabase client directly:
 
-To learn more about Next.js, take a look at the following resources:
+```typescript
+const { data, error } = await supabase.auth.signUp({
+  email: 'test@example.com',
+  password: 'testpassword123',
+});
+```
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+Or create a pre-confirmed user via the Supabase Admin API:
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+```bash
+SERVICE_ROLE_KEY=$(supabase status --output json | jq -r '.SERVICE_ROLE_KEY // .service_role_key')
 
-## Deploy on Vercel
+curl -X POST 'http://127.0.0.1:54321/auth/v1/admin/users' \
+  -H "Authorization: Bearer $SERVICE_ROLE_KEY" \
+  -H "apikey: $SERVICE_ROLE_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "email": "test@example.com",
+    "password": "testpassword123",
+    "email_confirm": true,
+    "user_metadata": { "full_name": "Test User" }
+  }'
+```
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+Supabase Studio is available at `http://localhost:54323` for inspecting users and data.
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+---
+
+## Full Setup (With Google OAuth)
+
+Use this path when you need to test the real Google sign-in flow.
+
+### 1. Google Cloud Console Setup
+
+1. Go to [Google Cloud Console](https://console.cloud.google.com).
+2. Create a project (or select an existing one).
+3. Navigate to **APIs & Services > OAuth consent screen** — choose External, fill in app name and emails, add scopes: `openid`, `email`, `profile`.
+4. Navigate to **APIs & Services > Credentials > Create Credentials > OAuth Client ID**.
+   - Application type: **Web application**
+   - Authorized JavaScript origins: `http://localhost:3000`
+   - Authorized redirect URIs: `http://127.0.0.1:54321/auth/v1/callback`
+5. Copy the **Client ID** and **Client Secret**.
+
+### 2. Configure Environment
+
+```bash
+cp .env.example .env
+```
+
+Edit `.env` and fill in:
+
+```
+SUPABASE_AUTH_EXTERNAL_GOOGLE_CLIENT_ID=your-client-id
+SUPABASE_AUTH_EXTERNAL_GOOGLE_CLIENT_SECRET=your-client-secret
+```
+
+### 3. Start Everything
+
+```bash
+bun install
+bun add -g supabase        # if not already installed
+supabase start             # reads .env for Google OAuth config
+scripts/setup-env.sh       # writes .env.local
+supabase db reset          # applies migrations
+bun run dev
+```
+
+### Passing Google Credentials to AI Agents
+
+To let agents test the full Google OAuth flow, pass credentials as environment variables when spawning the agent:
+
+```bash
+SUPABASE_AUTH_EXTERNAL_GOOGLE_CLIENT_ID=... \
+SUPABASE_AUTH_EXTERNAL_GOOGLE_CLIENT_SECRET=... \
+  <agent-launch-command>
+```
+
+The agent writes these to `.env` before running `supabase start`.
+
+---
+
+## Environment Files
+
+| File | Committed | Purpose |
+|---|---|---|
+| `.env.example` | Yes | Template for Supabase auth provider secrets |
+| `.env` | No | Actual Supabase auth provider secrets (Google OAuth). Read by `supabase start`. |
+| `.env.local` | No | Next.js env vars (`NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`, `NEXT_PUBLIC_SITE_URL`). Auto-generated by `scripts/setup-env.sh`. |
+
+---
+
+## Common Commands
+
+```bash
+bun install              # Install dependencies
+bun run dev              # Start dev server (http://localhost:3000)
+bun run build            # Production build
+bun run lint             # Run ESLint
+bun test                 # Run tests
+
+supabase start           # Start local Supabase stack (requires Docker)
+supabase stop            # Stop local Supabase stack
+supabase db reset        # Reset local DB and replay all migrations
+supabase status          # Show local Supabase service URLs and keys
+```
+
+---
+
+## Project Structure
+
+```
+src/
+  app/              # Next.js App Router pages and API routes
+    auth/           # Auth callback and actions
+    login/          # Login page
+  components/       # Shared UI components
+  lib/
+    supabase/       # Supabase client (client.ts) and server (server.ts) helpers
+  middleware.ts     # Supabase session refresh middleware
+docs/               # Design documents
+supabase/
+  config.toml       # Local Supabase configuration
+  migrations/       # SQL migration files
+scripts/
+  setup-env.sh      # Generates .env.local from local Supabase status
+```
+
+---
+
+## Tech Stack
+
+| Layer | Technology |
+|---|---|
+| Framework | Next.js 16 (App Router) |
+| Runtime | Bun |
+| Auth | Supabase Auth (Google OAuth) |
+| Database | Supabase PostgreSQL |
+| AI | Vercel AI SDK |
+| Durable Workflows | Vercel Workflow Dev Kit |
+| Google Integration | `googleapis` (Drive API v3) |
+| Styling | Tailwind CSS v4 |
+| Deployment | Vercel |

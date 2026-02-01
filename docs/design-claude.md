@@ -74,7 +74,9 @@ Authentication and third-party integrations are **separate concerns**. Login onl
 
 ### 1.1 Login (Identity Only)
 
-Supabase Auth handles sign-in. Initially Google is the only provider, but the design supports adding others (GitHub, email/password, etc.) without changes.
+Supabase Auth handles sign-in. Two login methods are supported: Google OAuth and email/password. Both produce a Supabase session and follow the same post-login workspace creation flow.
+
+#### 1.1.1 Google OAuth Login
 
 ```
 User clicks "Sign in with Google"
@@ -83,7 +85,7 @@ User clicks "Sign in with Google"
   → Redirect to /auth/callback
   → exchangeCodeForSession()
   → Ensure personal workspace exists (see below)
-  → Redirect to /dashboard
+  → Redirect to /w/:workspaceId
 ```
 
 **Login scopes (minimal):**
@@ -95,17 +97,53 @@ profile
 
 No Drive scopes are requested at login. No provider tokens need to be stored at this stage — Supabase handles session management.
 
-**Auto-workspace creation:** On every login callback, check if the user already has a workspace. If not, create one:
-1. Create a `workspaces` row with `name = "{firstName}'s Workspace"` (parsed from the Google profile).
+#### 1.1.2 Email/Password Login
+
+Email/password authentication uses Supabase's built-in email provider. This is the primary method for AI coding agents to create and use test accounts without needing Google credentials.
+
+**Sign-up flow:**
+```
+User visits /signup
+  → Fills email + password + confirm password
+  → Form submits to signUpWithEmail server action
+  → supabase.auth.signUp({ email, password })
+  → Session created immediately (no email confirmation — see config below)
+  → Ensure personal workspace exists
+  → Redirect to /w/:workspaceId
+```
+
+**Sign-in flow:**
+```
+User visits /login
+  → Fills email + password
+  → Form submits to signInWithEmail server action
+  → supabase.auth.signInWithPassword({ email, password })
+  → Ensure personal workspace exists
+  → Redirect to /w/:workspaceId
+```
+
+**Password requirements:** Minimum 6 characters (Supabase default, enforced server-side by Supabase). No additional client-side password rules beyond confirm-password matching.
+
+**Supabase dashboard configuration (required):**
+- Auth > Providers > Email: **Enable Email provider** = ON
+- Auth > Providers > Email: **Confirm email** = OFF (for dev/agent testing — agents can sign up and immediately use accounts without email verification)
+
+Email confirmation can be re-enabled for production by turning this setting ON and adding a `/auth/confirm` route to handle the token exchange flow.
+
+#### 1.1.3 Auto-Workspace Creation
+
+On every login (regardless of method), check if the user already has a workspace. If not, create one:
+1. Create a `workspaces` row with `name = "{displayName}'s Workspace"` (parsed from the Google profile for OAuth users, or derived from the email address for email/password users).
 2. Create a `workspace_members` row.
 
-This can be implemented as a Supabase Database Function trigger on `auth.users` insert, or in the `/auth/callback` route handler. The trigger approach is simpler and guarantees the workspace exists before any application code runs.
+For Google OAuth, this happens in the `/auth/callback` route handler. For email/password, this happens in the `signUpWithEmail` / `signInWithEmail` server actions. Alternatively, a Supabase Database Function trigger on `auth.users` insert can handle this for all auth methods — the trigger approach is simpler and guarantees the workspace exists before any application code runs.
 
 **Key implementation details:**
 - Use `@supabase/ssr` for server-side client creation (not the deprecated `auth-helpers`).
 - Middleware refreshes Supabase sessions on every request.
 - Always use `supabase.auth.getUser()` (not `getSession()`) on the server for security.
-- The login flow is provider-agnostic — adding a new identity provider is just a new button + Supabase config.
+- The login flow supports multiple auth methods — the login page renders an email/password form above a "or continue with" divider, followed by the Google OAuth button.
+- Email/password auth uses Next.js server actions (`signUpWithEmail`, `signInWithEmail`). No OAuth callback route is needed for this method.
 - For v1, workspaces are 1:1 with users. Every user has exactly one personal workspace, and they are its sole member and owner.
 
 ### 1.2 Google Drive Connection (Settings > Integrations)
@@ -132,8 +170,8 @@ We use `drive.readonly` rather than the narrower `drive.file` because the user n
 **Connection flow details:**
 - We use the `googleapis` OAuth2 client directly (not Supabase Auth) for this flow, since it's a separate consent for API access, not identity.
 - Request `access_type: 'offline'` and `prompt: 'consent'` to receive a refresh token.
-- Tokens are stored in the `integrations` table (see schema below).
-- The `googleapis` library auto-refreshes access tokens when we set credentials with a refresh token. We listen for the `tokens` event and update the `integrations` table.
+- Only the **refresh token** is persisted — it is **encrypted at rest** using AES-256-GCM before being written to the `integrations` table (see Section 5 schema and Appendix H for the encryption approach). Access tokens are short-lived (~1 hour) and are fetched on-demand from Google using the refresh token — they are never stored in the database.
+- The `googleapis` library auto-refreshes access tokens when we set credentials with a refresh token.
 
 ### 1.3 Settings > Integrations Page (Workspace-Scoped)
 
@@ -362,6 +400,17 @@ Messages use a `parts` model (from AI SDK):
 
 ```sql
 -- ============================================================
+-- Automatic updated_at trigger
+-- ============================================================
+CREATE OR REPLACE FUNCTION update_updated_at()
+RETURNS TRIGGER AS $$
+BEGIN
+  NEW.updated_at = now();
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+-- ============================================================
 -- Workspaces
 -- ============================================================
 CREATE TABLE workspaces (
@@ -370,6 +419,10 @@ CREATE TABLE workspaces (
   created_at TIMESTAMPTZ DEFAULT now() NOT NULL,
   updated_at TIMESTAMPTZ DEFAULT now() NOT NULL
 );
+
+CREATE TRIGGER workspaces_updated_at
+  BEFORE UPDATE ON workspaces
+  FOR EACH ROW EXECUTE FUNCTION update_updated_at();
 
 ALTER TABLE workspaces ENABLE ROW LEVEL SECURITY;
 
@@ -405,13 +458,15 @@ CREATE TABLE integrations (
   provider integration_provider NOT NULL,
   status integration_status NOT NULL DEFAULT 'active',
   provider_account_email TEXT,
-  access_token TEXT NOT NULL,
-  refresh_token TEXT,
-  token_expires_at TIMESTAMPTZ,
+  encrypted_refresh_token TEXT NOT NULL,         -- AES-256-GCM encrypted, base64-encoded (see Appendix H)
   created_at TIMESTAMPTZ DEFAULT now() NOT NULL,
   updated_at TIMESTAMPTZ DEFAULT now() NOT NULL,
   UNIQUE(user_id, workspace_id, provider)
 );
+
+CREATE TRIGGER integrations_updated_at
+  BEFORE UPDATE ON integrations
+  FOR EACH ROW EXECUTE FUNCTION update_updated_at();
 
 ALTER TABLE integrations ENABLE ROW LEVEL SECURITY;
 CREATE POLICY "users_own_integrations" ON integrations
@@ -419,18 +474,21 @@ CREATE POLICY "users_own_integrations" ON integrations
   WITH CHECK (auth.uid() = user_id);
 
 -- ============================================================
--- Chat Sessions (renamed from conversations)
+-- Chat Sessions
 -- ============================================================
 CREATE TABLE chat_sessions (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   workspace_id UUID REFERENCES workspaces(id) ON DELETE CASCADE NOT NULL,
-  created_by UUID REFERENCES auth.users(id) NOT NULL,
   title VARCHAR(255),
   created_at TIMESTAMPTZ DEFAULT now() NOT NULL,
   updated_at TIMESTAMPTZ DEFAULT now() NOT NULL
 );
 
 CREATE INDEX idx_chat_sessions_workspace ON chat_sessions(workspace_id, updated_at DESC);
+
+CREATE TRIGGER chat_sessions_updated_at
+  BEFORE UPDATE ON chat_sessions
+  FOR EACH ROW EXECUTE FUNCTION update_updated_at();
 
 ALTER TABLE chat_sessions ENABLE ROW LEVEL SECURITY;
 CREATE POLICY "workspace_members_see_sessions" ON chat_sessions
@@ -462,14 +520,20 @@ CREATE TABLE messages (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   chat_session_id UUID REFERENCES chat_sessions(id) ON DELETE CASCADE NOT NULL,
   role message_role NOT NULL,
+  sender_id UUID REFERENCES auth.users(id) ON DELETE SET NULL,
   parts JSONB NOT NULL DEFAULT '[]'::jsonb,   -- AI SDK UIMessage.parts (see Appendix F)
   status message_status NOT NULL DEFAULT 'completed',
   workflow_run_id TEXT,                        -- Vercel Workflow run ID (for reconnection)
   created_at TIMESTAMPTZ DEFAULT now() NOT NULL,
-  updated_at TIMESTAMPTZ DEFAULT now() NOT NULL
+  updated_at TIMESTAMPTZ DEFAULT now() NOT NULL,
+  CONSTRAINT user_messages_have_sender CHECK (role != 'user' OR sender_id IS NOT NULL)
 );
 
 CREATE INDEX idx_messages_session ON messages(chat_session_id, created_at);
+
+CREATE TRIGGER messages_updated_at
+  BEFORE UPDATE ON messages
+  FOR EACH ROW EXECUTE FUNCTION update_updated_at();
 
 ALTER TABLE messages ENABLE ROW LEVEL SECURITY;
 CREATE POLICY "participants_see_messages" ON messages
@@ -482,13 +546,15 @@ CREATE POLICY "participants_see_messages" ON messages
 
 ### Schema Notes
 
+- **Timestamps**: `created_at` is set automatically by `DEFAULT now()`. `updated_at` is maintained by a `BEFORE UPDATE` trigger — the application layer must never set either field.
 - **`workspaces`**: Auto-created on first login as "{firstName}'s Workspace". For v1, 1:1 with users. All resources (integrations, chat sessions) belong to a workspace, so the model is ready for team workspaces without schema changes.
 - **`workspace_members`**: Junction table. No roles for now — all members are treated as admins. A `role` column can be added later when permission tiers are needed.
-- **`integrations`**: Per-user, scoped to a workspace. Each user connects their own external account. API calls use the requesting user's token, so permissions are correct. See Appendix G for the analysis of this choice vs. workspace-level tokens.
-- **`chat_sessions`**: Belongs to a workspace. `created_by` tracks who started it.
+- **`integrations`**: Per-user, scoped to a workspace. Each user connects their own external account. API calls use the requesting user's token, so permissions are correct. Only the refresh token is stored — encrypted at rest with AES-256-GCM at the application layer before being written to the DB (see Appendix H). Access tokens are short-lived (~1 hour) and are fetched on-demand using the refresh token — never persisted. See Appendix G for per-user vs. workspace-level token analysis.
+- **`chat_sessions`**: Belongs to a workspace. The creator is tracked via `chat_participants` (the first participant added). No `created_by` column — participant membership is the source of truth, which avoids redundancy and supports future multi-user sessions.
 - **`chat_participants`**: Tracks which users are part of a chat session. The creator is automatically added. Enables future multi-user chat and scoped RLS.
+- **`messages.sender_id`**: Nullable foreign key to `auth.users`. The `CHECK` constraint enforces that `sender_id IS NOT NULL` when `role = 'user'`, and allows `NULL` when `role = 'assistant'`. The TypeScript `Message` type is a discriminated union on `role` that mirrors these constraints — `UserMessage` has `senderId: string` (non-nullable) and `AssistantMessage` omits `senderId` entirely. This supports future multi-user chat sessions where multiple users can send messages in the same conversation.
 - **`messages.parts`**: JSONB column storing the AI SDK `UIMessage.parts` array directly. See Appendix F for the detailed analysis of this choice vs. normalized parts tables.
-- **`messages.workflow_run_id`**: Links an assistant message to its durable workflow run, enabling reconnection. The workflow's Redis-backed stream handles token buffering — no per-token DB writes needed (see Appendix E).
+- **`messages.workflow_run_id`**: Links an assistant message to its durable workflow run, enabling reconnection. Every assistant message has a `workflow_run_id` — it is set at creation time when the workflow is started (the Vercel Workflow `start()` function auto-generates the run ID). User messages have `workflow_run_id = NULL`. The TypeScript discriminated union reflects this: `AssistantMessage` has `workflowRunId: string` (non-nullable), while `UserMessage` omits the field. The workflow's Redis-backed stream handles token buffering — no per-token DB writes needed (see Appendix E).
 - **`messages.status`**: Allows the frontend to distinguish between messages that are still being generated vs. completed.
 
 ---
@@ -497,12 +563,26 @@ CREATE POLICY "participants_see_messages" ON messages
 
 ### 6.1 First-Time Login
 
-1. User visits `/` → sees landing page with "Sign in with Google" button.
+**Via Google OAuth:**
+1. User visits `/login` → sees email/password form and "Continue with Google" button.
 2. Click triggers `supabase.auth.signInWithOAuth({ provider: 'google' })` — identity scopes only.
 3. Google consent screen → user grants profile + email access.
 4. Redirect to `/auth/callback` → exchange code for session.
 5. If first login: auto-create personal workspace ("{firstName}'s Workspace") and add user as `owner`.
-6. Redirect to `/dashboard` (showing the user's workspace).
+6. Redirect to `/w/:workspaceId` (the user's workspace home).
+
+**Via Email/Password (Sign Up):**
+1. User visits `/signup` → fills email, password, confirm password.
+2. Form submits `signUpWithEmail` server action → calls `supabase.auth.signUp({ email, password })`.
+3. Session created immediately (email confirmation disabled in dev).
+4. Server action calls `getOrCreateWorkspace()` to auto-create personal workspace.
+5. Redirect to `/w/:workspaceId`.
+
+**Via Email/Password (Returning User):**
+1. User visits `/login` → fills email and password.
+2. Form submits `signInWithEmail` server action → calls `supabase.auth.signInWithPassword({ email, password })`.
+3. Server action calls `getOrCreateWorkspace()` (ensures workspace exists).
+4. Redirect to `/w/:workspaceId`.
 
 ### 6.2 Connect Google Drive
 
@@ -516,7 +596,7 @@ CREATE POLICY "participants_see_messages" ON messages
 
 1. User clicks "New Chat".
 2. Create `chat_sessions` row in the user's active workspace, add user as participant.
-3. Navigate to `/chat/:chatSessionId`.
+3. Navigate to `/w/:workspaceId/chat/:chatSessionId`.
 4. User can chat freely. If they ask about Drive content and Drive is not connected, the agent tool fails gracefully and prompts the user to connect via Settings.
 
 ### 6.4 Send a Message
@@ -529,7 +609,7 @@ CREATE POLICY "participants_see_messages" ON messages
 
 ### 6.5 Reconnection
 
-1. User navigates to `/chat/:chatSessionId`.
+1. User navigates to `/w/:workspaceId/chat/:chatSessionId`.
 2. Frontend fetches messages from DB.
 3. If latest assistant message has `status = 'streaming'`:
    - Connect to `/api/runs/:runId?startIndex=:streamIndex`.
@@ -541,48 +621,1004 @@ CREATE POLICY "participants_see_messages" ON messages
 
 ## 7. Project Structure
 
+### 7.1 URL Scheme
+
+All authenticated routes are scoped under `/w/:workspaceId`. After login, the callback resolves the user's workspace and redirects to `/w/:workspaceId`. This makes workspace context explicit in the URL, which means deep links, bookmarks, and browser history all work correctly — and the scheme extends naturally to team workspaces without any URL migration.
+
 ```
-app/
-├── (auth)/
-│   ├── login/page.tsx                          # Login page
-│   ├── auth/callback/route.ts                  # Supabase OAuth callback (identity)
-│   └── auth/integrations/
-│       └── google-drive/
-│           ├── route.ts                        # GET: initiate Drive OAuth flow
-│           └── callback/route.ts               # GET: handle Drive OAuth callback
-├── (app)/
-│   ├── layout.tsx                              # Authenticated layout with sidebar
-│   ├── dashboard/page.tsx                      # Chat session list
-│   ├── chat/[id]/page.tsx                      # Chat interface
-│   └── settings/
-│       └── integrations/page.tsx               # Integration management (connect/disconnect)
-├── api/
-│   ├── chat/
-│   │   ├── route.ts                            # POST: send message + start workflow
-│   │   └── workflow.ts                         # Durable chat workflow definition
-│   ├── runs/
-│   │   └── [runId]/route.ts                    # GET: reconnect to workflow stream
-│   ├── integrations/
-│   │   └── [provider]/route.ts                 # DELETE: disconnect integration
-│   └── drive/
-│       ├── folders/route.ts                    # GET: validate & list folder contents
-│       └── files/[fileId]/route.ts             # GET: fetch file content
-├── globals.css
-└── layout.tsx                                  # Root layout
-lib/
-├── supabase/
-│   ├── client.ts                               # Browser client
-│   ├── server.ts                               # Server client
-│   └── middleware.ts                            # Session refresh
-├── google/
-│   ├── auth.ts                                 # OAuth2 client factory (Drive-specific)
-│   └── drive.ts                                # Drive API helpers
-├── ai/
-│   ├── tools.ts                                # Agent tool definitions
-│   └── context.ts                              # Document context builder
-└── types.ts                                    # Shared types
-middleware.ts                                   # Next.js middleware (Supabase session refresh)
+/login                                         # Public — email/password sign-in + Google OAuth
+/signup                                        # Public — email/password registration
+/auth/callback                                 # Supabase OAuth callback
+/auth/integrations/google-drive                # Initiate Drive OAuth
+/auth/integrations/google-drive/callback       # Drive OAuth callback
+
+/w/:workspaceId                                # Workspace home (chat session list)
+/w/:workspaceId/chat/:chatId                   # Chat interface
+/w/:workspaceId/settings/integrations          # Connect/disconnect integrations
 ```
+
+For v1 (1:1 user-to-workspace), the workspace segment is technically redundant, but it costs nothing and prevents a URL migration when team workspaces ship.
+
+### 7.2 Directory Structure
+
+```
+src/
+├── app/                                        # Next.js App Router (routes only — thin)
+│   ├── (auth)/                                 # Public routes (no auth required)
+│   │   ├── login/page.tsx                              # Email/password sign-in + Google OAuth button
+│   │   ├── signup/page.tsx                             # Email/password registration
+│   │   └── auth/
+│   │       ├── callback/route.ts                        # Supabase identity OAuth callback
+│   │       └── integrations/
+│   │           └── google-drive/
+│   │               ├── route.ts                         # GET: initiate Drive OAuth
+│   │               └── callback/route.ts                # GET: handle Drive OAuth callback
+│   ├── (app)/                                  # Authenticated routes (layout enforces auth)
+│   │   └── w/[workspaceId]/
+│   │       ├── layout.tsx                               # Auth guard + workspace validation + sidebar
+│   │       ├── page.tsx                                 # Workspace home (chat session list)
+│   │       ├── chat/[chatId]/page.tsx                   # Chat UI
+│   │       └── settings/
+│   │           └── integrations/page.tsx                # Connect/disconnect integrations
+│   ├── api/
+│   │   ├── chat/
+│   │   │   ├── route.ts                                # POST: send message, start workflow
+│   │   │   └── workflow.ts                             # Durable workflow definition
+│   │   ├── runs/
+│   │   │   └── [runId]/route.ts                        # GET: reconnect to stream
+│   │   └── integrations/
+│   │       └── [provider]/route.ts                     # DELETE: disconnect
+│   ├── globals.css
+│   └── layout.tsx                              # Root layout
+│
+├── components/                                 # Shared UI components
+│   ├── ui/                                     # Generic primitives (button, input, card, etc.)
+│   │   ├── button.tsx
+│   │   └── ...
+│   ├── chat/                                   # Chat-specific components
+│   │   ├── message-list.tsx
+│   │   ├── message-bubble.tsx
+│   │   ├── tool-call-card.tsx
+│   │   ├── chat-input.tsx
+│   │   └── chat-header.tsx
+│   ├── sidebar/
+│   │   ├── sidebar.tsx
+│   │   └── session-list.tsx
+│   └── integrations/
+│       └── integration-card.tsx
+│
+├── lib/                                        # Core business logic (no React, no Next.js)
+│   ├── supabase/
+│   │   ├── client.ts                                   # Browser Supabase client
+│   │   ├── server.ts                                   # Server Supabase client (cookies-based)
+│   │   └── middleware.ts                               # Session refresh logic
+│   ├── google/
+│   │   ├── auth.ts                                     # OAuth2 client factory for Drive
+│   │   └── drive.ts                                    # Drive API helpers (list, read, search)
+│   ├── ai/
+│   │   ├── tools.ts                                    # Agent tool definitions
+│   │   ├── agent.ts                                    # runAgent() — streamText + tool loop
+│   │   └── prompts.ts                                  # System prompts
+│   ├── db/                                     # Data access layer (DAL)
+│   │   ├── chat-sessions.ts                            # CRUD for chat_sessions + participants
+│   │   ├── messages.ts                                 # CRUD for messages
+│   │   ├── integrations.ts                             # CRUD for integrations (encrypts/decrypts tokens)
+│   │   └── workspaces.ts                               # CRUD for workspaces + members
+│   ├── crypto.ts                               # AES-256-GCM encrypt/decrypt (see Appendix H)
+│   └── types.ts                                # Shared TypeScript types & interfaces
+│
+├── hooks/                                      # React hooks
+│   ├── use-chat-stream.ts                              # SSE stream consumption + reconnection
+│   └── use-chat-sessions.ts                            # Sidebar session list
+│
+└── middleware.ts                                # Next.js middleware (Supabase session refresh)
+```
+
+### 7.3 Structural Principles
+
+- **`app/` routes are thin.** Each route handler does three things: authenticate, call into `lib/`, return a response. No business logic lives in route files.
+- **`lib/` has zero React/Next.js imports.** Everything in `lib/` is pure TypeScript — testable without a browser or request context, callable from route handlers or workflow steps.
+- **`lib/db/` is the data access layer (DAL).** Routes and workflows never call `supabase.from(...)` directly — they go through `lib/db/`. This gives a single place to enforce business rules and keeps Supabase-specific queries out of application logic.
+- **DAL functions create their own Supabase client internally** using `createServerClient()` from `@supabase/ssr`. This is the idiomatic Next.js/Supabase pattern — the client reads from the request's cookies and is already scoped to the current user. No need to pass the client as a parameter. For testing, mock the `createServerClient` module with `vi.mock`.
+- **`components/` is split by domain**, not by type. `components/chat/` owns everything related to rendering chat. `components/ui/` is the generic design system.
+
+### 7.4 Interface Contracts
+
+These function signatures define the boundaries between subsystems. Each workstream can develop against these contracts independently, mocking other subsystems as needed.
+
+#### Data Access Layer (`lib/db/`)
+
+```typescript
+// lib/db/workspaces.ts
+export async function getOrCreateWorkspace(userId: string, displayName: string): Promise<Workspace>
+export async function getWorkspaceForUser(userId: string): Promise<Workspace | null>
+
+// lib/db/chat-sessions.ts
+export async function createChatSession(workspaceId: string, userId: string): Promise<ChatSession>
+export async function listChatSessions(workspaceId: string): Promise<ChatSession[]>
+export async function getChatSession(id: string): Promise<ChatSession | null>
+
+// lib/db/messages.ts
+export async function createUserMessage(chatSessionId: string, userId: string, content: string): Promise<UserMessage>
+export async function createPendingAssistantMessage(chatSessionId: string, workflowRunId: string): Promise<AssistantMessage>
+export async function completeAssistantMessage(messageId: string, parts: MessagePart[]): Promise<void>
+export async function failAssistantMessage(messageId: string): Promise<void>
+export async function listMessages(chatSessionId: string): Promise<Message[]>
+
+// lib/db/integrations.ts
+export async function getIntegration(userId: string, workspaceId: string, provider: IntegrationProvider): Promise<Integration | null>
+export async function upsertIntegration(params: UpsertIntegrationParams): Promise<Integration>
+export async function deleteIntegration(id: string): Promise<void>
+export async function updateRefreshToken(integrationId: string, refreshToken: string): Promise<void>
+```
+
+#### Google Drive (`lib/google/`)
+
+```typescript
+// lib/google/auth.ts
+export function createOAuth2Client(): OAuth2Client
+export function getAuthUrl(state: string): string
+export async function exchangeCodeForTokens(code: string): Promise<GoogleTokens>
+export async function revokeToken(token: string): Promise<void>
+
+// lib/google/drive.ts
+export function getDriveClient(refreshToken: string): drive_v3.Drive
+export async function listFolder(drive: drive_v3.Drive, folderId: string): Promise<DriveFile[]>
+export async function readFile(drive: drive_v3.Drive, fileId: string, mimeType: string): Promise<string>
+export async function searchFiles(drive: drive_v3.Drive, query: string): Promise<DriveFile[]>
+```
+
+#### AI Agent (`lib/ai/`)
+
+```typescript
+// lib/ai/tools.ts
+export function createDriveTools(drive: drive_v3.Drive): Record<string, CoreTool>
+
+// lib/ai/agent.ts
+export async function runAgent(params: {
+  messages: Message[]
+  tools: Record<string, Tool>
+  systemPrompt: string
+  onChunk: (chunk: string) => void
+}): Promise<AgentResult>
+
+// lib/ai/prompts.ts
+export function buildSystemPrompt(context?: string): string
+```
+
+#### Workflow (`app/api/chat/workflow.ts`)
+
+```typescript
+export async function chatWorkflow(
+  chatSessionId: string,
+  userMessageId: string,
+  userId: string,
+  workspaceId: string
+): Promise<{ messageId: string }>
+```
+
+The workflow is the orchestrator — it calls into `lib/db/`, `lib/google/`, and `lib/ai/` but contains no business logic itself. It's the sequence: load history → build tools → run agent → save result.
+
+#### React Hooks (`hooks/`)
+
+```typescript
+// hooks/use-chat-stream.ts
+export function useChatStream(chatSessionId: string): {
+  messages: Message[]
+  sendMessage: (content: string) => Promise<void>
+  isStreaming: boolean
+  error: Error | null
+}
+
+// hooks/use-chat-sessions.ts
+export function useChatSessions(workspaceId: string): {
+  sessions: ChatSession[]
+  createSession: () => Promise<ChatSession>
+}
+```
+
+### 7.5 Shared Types (`lib/types.ts`)
+
+```typescript
+export type IntegrationProvider = 'google_drive'
+export type IntegrationStatus = 'active' | 'error' | 'revoked'
+export type MessageStatus = 'pending' | 'streaming' | 'completed' | 'error'
+
+export interface Workspace {
+  id: string
+  name: string
+  createdAt: Date
+  updatedAt: Date
+}
+
+export interface ChatSession {
+  id: string
+  workspaceId: string
+  title: string | null
+  createdAt: Date
+  updatedAt: Date
+}
+
+// Message is a discriminated union on `role`. This encodes the DB-level constraints
+// (sender_id NOT NULL for user messages, workflow_run_id only on assistant messages)
+// directly in the type system, so narrowing on `msg.role` gives the correct field types
+// without casts or null checks. The Vercel Workflow `start()` function auto-generates
+// the run ID (custom IDs are not supported), so workflowRunId is set at assistant
+// message creation time and is always present. User messages have no associated workflow.
+
+interface BaseMessage {
+  id: string
+  chatSessionId: string
+  parts: MessagePart[]
+  createdAt: Date
+}
+
+export interface UserMessage extends BaseMessage {
+  role: 'user'
+  senderId: string                  // always present — the user who sent the message
+  status: 'completed'               // user messages are immediately complete
+}
+
+export interface AssistantMessage extends BaseMessage {
+  role: 'assistant'
+  workflowRunId: string             // always present — set when workflow is started
+  status: MessageStatus             // pending → streaming → completed | error
+}
+
+export type Message = UserMessage | AssistantMessage
+
+export type MessagePart =
+  | { type: 'text'; text: string }
+  | { type: 'tool-call'; toolCallId: string; toolName: string; args: Record<string, unknown> }
+  | { type: 'tool-result'; toolCallId: string; result: unknown }
+
+export interface Integration {
+  id: string
+  userId: string
+  workspaceId: string
+  provider: IntegrationProvider
+  status: IntegrationStatus
+  providerAccountEmail: string | null
+  // refreshToken is decrypted at the DAL layer — callers receive plaintext
+  refreshToken: string
+}
+
+export interface DriveFile {
+  id: string
+  name: string
+  mimeType: string
+  modifiedTime: string
+}
+
+export interface GoogleTokens {
+  accessToken: string             // Short-lived, not persisted
+  refreshToken: string            // Long-lived, encrypted before storage
+}
+
+export interface AgentResult {
+  id: string
+  parts: MessagePart[]
+}
+
+export interface UpsertIntegrationParams {
+  userId: string
+  workspaceId: string
+  provider: IntegrationProvider
+  refreshToken: string              // Plaintext — the DAL encrypts before writing
+  providerAccountEmail: string | null
+}
+
+export interface SendMessageRequest {
+  chatSessionId: string
+  content: string
+}
+
+export interface RunReconnectParams {
+  runId: string
+  startIndex?: number
+}
+
+export interface AuthFormState {
+  error: string | null
+  success: string | null
+}
+```
+
+### 7.6 Parallelization Plan
+
+This section defines the full implementation as 13 tasks with explicit file ownership, interface dependencies, and test plans. Each task is designed to be handed off to an independent agent. No two tasks modify the same file.
+
+#### 7.6.1 Dependency Graph
+
+```
+                    ┌──────┐   ┌──────┐
+                    │  T1  │   │  T2  │
+                    │Found-│   │ DB   │
+                    │ation │   │Migra-│
+                    └──┬───┘   │tions │
+           ┌───┬───┬──┼───┬───└──────┘
+           │   │   │  │   │      │
+           ▼   │   ▼  │   ▼      │  (T2 needed for
+        ┌──────┤┌──────┤┌──────┐  │   integration
+        │  T3  ││  T5  ││  T6  │  │   tests of T4)
+        │Middle││Google││  AI  │  │
+        │ware  ││Drive ││Agent │  │
+        └──┬───┘└──┬───┘└──┬───┘  │
+           │       │       │      │
+           │   ┌───┴───────┘      │
+           │   │   │              │
+           │   │   ▼       ┌──────┤ ┌──────┐
+           │   │┌──────┐   │  T4  │ │  T7  │
+           │   ││  T12 │   │ DAL  │ │  UI  │
+           │   ││Work- │   │      │ │Prims │
+           │   ││flow  │   └──┬───┘ └──┬───┘
+           │   │└──────┘      │   ┌────┼────┐
+           │   │              │   │    │    │
+           ▼   ▼              ▼   ▼    ▼    ▼
+        ┌──────┐          ┌──────┐┌──────┐┌──────┐
+        │  T8  │          │  T11 ││  T9  ││  T10 │
+        │ Auth │          │Integ-││Chat  ││Side- │
+        │Routes│          │ation ││  UI  ││ bar  │
+        └──┬───┘          │Sett- │└──┬───┘└──┬───┘
+           │              │ings  │   │       │
+           │              └──┬───┘   │       │
+           │                 │       │       │
+           └────────┬────────┴───────┴───────┘
+                    │
+                    ▼
+                ┌──────┐
+                │  T13 │
+                │ App  │
+                │Shell │
+                │+Pages│
+                └──────┘
+```
+
+**Dependency edges (A → B means "A must complete before B can start"):**
+
+| Task | Depends On | Reason |
+|------|-----------|--------|
+| T1 | — | No dependencies |
+| T2 | — | No dependencies (parallel with T1) |
+| T3 | T1 | Needs `lib/supabase/server.ts` |
+| T4 | T1 | Needs types + supabase client. T2 needed for integration tests only. |
+| T5 | T1 | Needs types only. Drive helpers are pure googleapis wrappers — no DAL calls. |
+| T6 | T1 | Needs types only. Tools accept a `drive` client param — no direct Drive import. |
+| T7 | — | Pure UI, no backend dependencies. Can start immediately. |
+| T8 | T1, T3, T4 | Callback route needs middleware + `getOrCreateWorkspace()` |
+| T9 | T1, T7 | Chat components use UI primitives + shared types |
+| T10 | T1, T7 | Sidebar components use UI primitives + shared types |
+| T11 | T1, T4, T5, T7 | Settings page uses DAL (integrations), Google auth, UI primitives |
+| T12 | T1, T4, T5, T6 | Workflow orchestrates DAL + Drive + Agent |
+| T13 | T3, T8, T9, T10, T12 | Assembles all components into pages with auth layout |
+
+**Key decoupling decisions that maximize parallelism:**
+
+1. **`getDriveClient(refreshToken)` accepts a decrypted refresh token directly** instead of looking it up from the DB. This eliminates T5's runtime dependency on T4. The *caller* (workflow in T12) fetches the integration via the DAL (which handles decryption) and passes the plaintext refresh token.
+
+2. **`createDriveTools(drive)` accepts a Drive client as a parameter** instead of constructing one internally. This eliminates T6's runtime dependency on T5. The workflow (T12) constructs the drive client and passes it in.
+
+3. **All DAL functions create their own Supabase client internally.** No task needs to pass a client through, and each DAL function can be mocked at the module level with `vi.mock`.
+
+#### 7.6.2 Execution Waves
+
+```
+Wave 1 (no dependencies):     T1, T2, T7          ← start immediately
+Wave 2 (after T1):            T3, T4, T5, T6      ← all parallel
+Wave 3 (after T1+T7):         T9, T10             ← parallel
+Wave 3 (after T3+T4):         T8                  ← parallel with T9/T10
+Wave 3 (after T4+T5+T7):      T11                 ← parallel with T8/T9/T10
+Wave 4 (after T4+T5+T6):      T12                 ← can overlap with Wave 3
+Wave 5 (after T3+T8+T9+T10+T12): T13              ← final assembly
+```
+
+**Critical path: T1 → T4 → T12 → T13** (4 sequential steps). All other work happens in parallel alongside this path.
+
+#### 7.6.3 Task Specifications
+
+---
+
+##### T1: Foundation
+
+**Overview:** Establish the project skeleton — shared types, Supabase client factories, test infrastructure, all npm dependencies, and environment variable template. Every other task depends on this, so it must be completed first and must be stable.
+
+**File Ownership:**
+| File | Action |
+|------|--------|
+| `src/lib/types.ts` | Create (Section 7.5 types + `UpsertIntegrationParams`, `SendMessageRequest`, `RunReconnectParams`) |
+| `src/lib/crypto.ts` | Create (AES-256-GCM `encrypt`/`decrypt` utilities — see Appendix H) |
+| `src/lib/supabase/client.ts` | Create (browser client via `createBrowserClient` from `@supabase/ssr`) |
+| `src/lib/supabase/server.ts` | Create (server client via `createServerClient` from `@supabase/ssr`, reads cookies) |
+| `vitest.config.ts` | Create |
+| `.env.local.example` | Create (all env var keys with placeholder values and comments) |
+| `package.json` | Modify (install ALL project dependencies — see below) |
+| `tsconfig.json` | Modify if needed (path aliases) |
+| `next.config.ts` | Modify if needed (`serverExternalPackages: ['googleapis']`) |
+| `src/app/layout.tsx` | Owned by T1 (already exists — root HTML wrapper, not a page) |
+| `src/app/globals.css` | Owned by T1 (already exists — theme tokens) |
+
+**Dependencies to install:**
+```
+@supabase/ssr @supabase/supabase-js
+googleapis
+ai @ai-sdk/anthropic @ai-sdk/react
+workflow
+zod
+vitest @testing-library/react @testing-library/jest-dom jsdom
+```
+
+**Environment variables (`.env.local.example`):**
+```bash
+NEXT_PUBLIC_SUPABASE_URL=           # Supabase project URL
+NEXT_PUBLIC_SUPABASE_ANON_KEY=      # Supabase anon/public key
+SUPABASE_SERVICE_ROLE_KEY=          # Supabase service role key (server only)
+GOOGLE_CLIENT_ID=                   # Google OAuth client ID
+GOOGLE_CLIENT_SECRET=               # Google OAuth client secret
+GOOGLE_REDIRECT_URI=                # e.g. http://localhost:3000/auth/integrations/google-drive/callback
+ANTHROPIC_API_KEY=                  # Anthropic API key for Claude
+TOKEN_ENCRYPTION_KEY=               # 32-byte hex key for AES-256-GCM token encryption (see Appendix H)
+```
+
+**Supabase dashboard configuration (required for email/password auth):**
+- Auth > Providers > Email: **Enable Email provider** = ON
+- Auth > Providers > Email: **Confirm email** = OFF (for dev/agent testing)
+
+**Interface contract:** `lib/types.ts` is the contract. Every type from Section 7.5 must be present and exported.
+
+**Tests:**
+- `lib/types.ts` compiles without errors (TypeScript compilation check)
+- `createBrowserClient()` returns a `SupabaseClient` instance
+- `createServerClient()` can be called with mocked `cookies()` and returns a client
+- `encrypt(plaintext)` returns a base64 string; `decrypt(ciphertext)` returns the original plaintext
+- `decrypt` throws on tampered ciphertext (GCM authentication check)
+- `encrypt` produces different ciphertext for the same plaintext (unique IV per call)
+- Vitest config runs a trivial `expect(true).toBe(true)` test
+- `bun install` succeeds with no peer dependency errors
+
+**Done when:** All tests pass, `bun run build` succeeds, every type from Section 7.5 is exported from `lib/types.ts`.
+
+---
+
+##### T2: Database Migrations
+
+**Overview:** Create all Supabase migration SQL files implementing the schema from Section 5. This task produces only SQL files — no TypeScript.
+
+**File Ownership:**
+| File | Action |
+|------|--------|
+| `supabase/migrations/<timestamp>_create_tables.sql` | Create |
+| `supabase/config.toml` | Modify if needed |
+
+**Interface contract:** The migration must create exactly the tables, columns, types, indexes, and RLS policies defined in Section 5 of the design doc. Column names use `snake_case`. The `integrations` table uses `UNIQUE(user_id, workspace_id, provider)` (per-user tokens, per Appendix G).
+
+**Tests:**
+- `supabase db reset` runs without errors (applies all migrations to a fresh local DB)
+- All 6 tables exist: `workspaces`, `workspace_members`, `integrations`, `chat_sessions`, `chat_participants`, `messages`
+- All 4 enum types exist: `integration_provider`, `integration_status`, `message_role`, `message_status`
+- RLS is enabled on all tables and all policies are created
+- Foreign key cascades work: `DELETE FROM workspaces WHERE id = X` cascades to `workspace_members`, `integrations`, `chat_sessions`
+- `DELETE FROM chat_sessions WHERE id = X` cascades to `chat_participants`, `messages`
+- Unique constraints: `(workspace_id, user_id)` on `workspace_members`, `(user_id, workspace_id, provider)` on `integrations`, `(chat_session_id, user_id)` on `chat_participants`
+- Indexes exist on `chat_sessions(workspace_id, updated_at DESC)` and `messages(chat_session_id, created_at)`
+- `updated_at` triggers fire on UPDATE for `workspaces`, `integrations`, `chat_sessions`, `messages` (verify by updating a row and checking `updated_at` changed)
+- CHECK constraint: inserting a message with `role='user'` and `sender_id=NULL` fails
+- CHECK constraint: inserting a message with `role='assistant'` and `sender_id=NULL` succeeds
+
+**Done when:** `supabase db reset` succeeds and all constraint/index/trigger checks pass.
+
+---
+
+##### T3: Next.js Middleware
+
+**Overview:** Implement the Next.js middleware that refreshes Supabase sessions on every request and protects authenticated routes.
+
+**File Ownership:**
+| File | Action |
+|------|--------|
+| `src/middleware.ts` | Create |
+| `src/lib/supabase/middleware.ts` | Create (session refresh helper) |
+
+**Depends on:** T1 (`lib/supabase/server.ts`)
+
+**Interface contract:**
+- `middleware.ts` exports a `middleware` function and a `config` with route matcher
+- Protected routes: `/w/*` require authentication — redirect to `/login` if no session
+- Public routes: `/`, `/login`, `/auth/*`, `/api/*` are not blocked
+- Authenticated users hitting `/login` are redirected to `/w/:workspaceId`
+- `updateSession(request)` from `lib/supabase/middleware.ts` refreshes the Supabase session cookies on every request
+
+**Tests:**
+- Request to `/w/123` without auth cookie → redirect to `/login`
+- Request to `/w/123` with valid auth cookie → passes through, cookies refreshed
+- Request to `/login` without auth → passes through
+- Request to `/login` with auth → redirect to `/w/:workspaceId` (mock `getWorkspaceForUser`)
+- Request to `/api/chat` → passes through (API routes handle their own auth)
+- Request to `/auth/callback` → passes through (public)
+
+**Done when:** All middleware tests pass. `bun run build` succeeds.
+
+---
+
+##### T4: Data Access Layer (DAL)
+
+**Overview:** Implement all database query functions. Each function creates its own Supabase server client internally via `createServerClient()`. Functions follow the signatures defined in Section 7.4.
+
+**File Ownership:**
+| File | Action |
+|------|--------|
+| `src/lib/db/workspaces.ts` | Create |
+| `src/lib/db/chat-sessions.ts` | Create |
+| `src/lib/db/messages.ts` | Create |
+| `src/lib/db/integrations.ts` | Create |
+| `src/lib/db/index.ts` | Create (barrel export) |
+
+**Depends on:** T1 (`lib/types.ts`, `lib/supabase/server.ts`). T2 needed only for integration tests against a real DB.
+
+**Interface contract:** Exactly the function signatures from Section 7.4. Additional conventions:
+- Functions that find a single record return `T | null` (not throw) when not found
+- Functions that create a record throw on constraint violations
+- All functions map `snake_case` DB columns to `camelCase` TypeScript properties
+- Row-to-type mapping helpers are private to each file
+- DAL functions must never set `created_at` or `updated_at` — these are managed by database defaults and triggers
+
+**Tests (unit, with mocked Supabase client):**
+- `getOrCreateWorkspace`: first call inserts workspace + member, returns `Workspace`. Second call with same userId returns existing workspace (no insert).
+- `getWorkspaceForUser`: returns `Workspace` if member exists, `null` if not.
+- `createChatSession`: inserts `chat_sessions` row + `chat_participants` row. Returns `ChatSession`.
+- `listChatSessions`: returns `ChatSession[]` ordered by `updatedAt` descending.
+- `getChatSession`: returns `ChatSession | null`.
+- `createUserMessage`: inserts message with `role='user'`, `sender_id=userId`, `status='completed'`, parts containing the text. Returns `UserMessage` (with `senderId: string`, no `workflowRunId`).
+- `createPendingAssistantMessage`: inserts message with `role='assistant'`, `sender_id=NULL`, `status='pending'`, `workflow_run_id` set. Returns `AssistantMessage` (with `workflowRunId: string`, no `senderId`).
+- `completeAssistantMessage`: updates status to `'completed'` and sets `parts`.
+- `failAssistantMessage`: updates status to `'error'`.
+- `listMessages`: returns `Message[]` ordered by `createdAt` ascending.
+- `getIntegration`: returns `Integration | null` for given user/workspace/provider.
+- `upsertIntegration`: encrypts the refresh token via `lib/crypto.ts` before writing. Inserts on first call, updates on conflict (same user/workspace/provider).
+- `getIntegration`: decrypts the refresh token via `lib/crypto.ts` before returning the `Integration` object. Callers receive plaintext.
+- `deleteIntegration`: deletes the row.
+- `updateRefreshToken`: encrypts the new refresh token and updates `encrypted_refresh_token` on the integration row.
+
+**Done when:** All unit tests pass. Each exported function matches its Section 7.4 signature.
+
+---
+
+##### T5: Google OAuth + Drive Helpers
+
+**Overview:** Implement the Google OAuth2 client factory and Drive API helper functions. These are pure `googleapis` wrappers with no database calls. `getDriveClient` accepts credentials as a parameter — the caller is responsible for looking up the integration record.
+
+**File Ownership:**
+| File | Action |
+|------|--------|
+| `src/lib/google/auth.ts` | Create |
+| `src/lib/google/drive.ts` | Create |
+| `src/lib/google/index.ts` | Create (barrel export) |
+
+**Depends on:** T1 (`lib/types.ts` for `GoogleTokens`, `DriveFile`)
+
+**Interface contract:** Exactly the function signatures from Section 7.4. Key details:
+- `createOAuth2Client()`: creates a `google.auth.OAuth2` instance using `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `GOOGLE_REDIRECT_URI` env vars.
+- `getAuthUrl(state)`: returns a Google OAuth consent URL requesting `drive.readonly` scope, `access_type: 'offline'`, `prompt: 'consent'`. The `state` param is passed through for CSRF protection.
+- `exchangeCodeForTokens(code)`: calls `oauth2Client.getToken(code)` and returns `GoogleTokens` (containing both the short-lived access token and the long-lived refresh token — the caller is responsible for persisting the refresh token via the DAL, which encrypts it).
+- `revokeToken(token)`: POSTs to `https://oauth2.googleapis.com/revoke`.
+- `getDriveClient(refreshToken)`: creates an OAuth2 client, sets the refresh token as credentials, and returns `google.drive({ version: 'v3', auth })`. The `googleapis` library automatically fetches a fresh access token from Google using the refresh token on the first API call. Registers a `tokens` event listener that calls an optional `onTokenRefresh` callback (for callers that want to persist a rotated refresh token).
+- `listFolder(drive, folderId)`: queries `'${folderId}' in parents and trashed = false`, returns `DriveFile[]`.
+- `readFile(drive, fileId, mimeType)`: for `application/vnd.google-apps.*` types, exports as `text/plain` (or `text/csv` for spreadsheets). For other types, downloads via `alt: 'media'`. Returns `string`.
+- `searchFiles(drive, query)`: full-text search via `fullText contains '${query}'`, returns `DriveFile[]`.
+
+**Tests (unit, with mocked googleapis):**
+- `createOAuth2Client` returns an OAuth2Client with correct credentials
+- `getAuthUrl` returns a URL containing `scope=...drive.readonly`, `access_type=offline`, `state=<value>`
+- `exchangeCodeForTokens` returns `GoogleTokens` with accessToken and refreshToken (mock `getToken`). Note: the caller (T11 OAuth callback) encrypts and stores the refreshToken via the DAL.
+- `revokeToken` calls the revocation endpoint (mock fetch/HTTP)
+- `getDriveClient` returns a `drive_v3.Drive` instance
+- `listFolder` passes correct query to `drive.files.list` and maps response to `DriveFile[]`
+- `readFile` with Google Docs mimeType calls `drive.files.export`
+- `readFile` with `text/plain` mimeType calls `drive.files.get` with `alt: 'media'`
+- `searchFiles` passes correct `fullText contains` query
+
+**Done when:** All tests pass. No imports from `lib/db/`.
+
+---
+
+##### T6: AI Agent Core
+
+**Overview:** Implement the AI agent — tool definitions, the `runAgent` orchestrator, and system prompts. Tools accept a Drive client as a parameter (dependency injection), making this task independent of T5 at build time.
+
+**File Ownership:**
+| File | Action |
+|------|--------|
+| `src/lib/ai/tools.ts` | Create |
+| `src/lib/ai/agent.ts` | Create |
+| `src/lib/ai/prompts.ts` | Create |
+| `src/lib/ai/index.ts` | Create (barrel export) |
+
+**Depends on:** T1 (`lib/types.ts`). Uses `drive_v3.Drive` type from `googleapis` (installed by T1).
+
+**Interface contract:**
+- `createDriveTools(drive: drive_v3.Drive)`: returns `Record<string, CoreTool>` containing `list_drive_folder`, `read_drive_file`, `search_drive` tools. Each tool has a zod input schema and an `execute` function that calls the provided `drive` client. Tool definitions follow the Vercel AI SDK `tool()` pattern.
+- `runAgent(params)`: calls `streamText` from the `ai` package with the provided messages, tools, and system prompt. Calls `params.onChunk` for each text delta. Returns `AgentResult` with `id` (generated via `generateId()`) and `parts` (the final `UIMessage.parts` array). Respects `maxSteps` (default 10).
+- `buildSystemPrompt(context?)`: returns the system prompt string. If `context` is provided, appends document context instructions.
+
+**Tests (unit, with mocked AI SDK):**
+- `createDriveTools` returns an object with keys `list_drive_folder`, `read_drive_file`, `search_drive`
+- Each tool has a valid zod schema (test by parsing sample input)
+- `list_drive_folder` execute calls `drive.files.list` with correct query
+- `read_drive_file` execute calls `drive.files.export` for Google Docs types
+- `runAgent` calls `streamText` with correct model, messages, tools, system prompt
+- `runAgent` invokes `onChunk` callback for each text delta (mock streamText to emit chunks)
+- `runAgent` returns `AgentResult` with id and parts
+- `runAgent` respects maxSteps (mock streamText with tool calls to verify step limit)
+- `buildSystemPrompt()` returns a base prompt without context section
+- `buildSystemPrompt('doc content')` returns a prompt containing the document context
+
+**Done when:** All tests pass. No imports from `lib/db/` or `lib/google/` (only the `drive_v3.Drive` type).
+
+---
+
+##### T7: UI Primitives
+
+**Overview:** Create the shared UI component library. These are pure presentational components — no backend imports, no hooks, no data fetching. Uses Tailwind CSS for styling.
+
+**File Ownership:**
+| File | Action |
+|------|--------|
+| `src/components/ui/button.tsx` | Create |
+| `src/components/ui/input.tsx` | Create |
+| `src/components/ui/card.tsx` | Create |
+| `src/components/ui/avatar.tsx` | Create |
+| `src/components/ui/badge.tsx` | Create |
+| `src/components/ui/scroll-area.tsx` | Create |
+| `src/components/ui/skeleton.tsx` | Create |
+| `src/components/ui/collapsible.tsx` | Create |
+
+Note: existing components at `src/components/button.tsx`, `logo.tsx`, `fade-in.tsx`, `google-icon.tsx` are **frozen** — they belong to the existing landing/login pages and must not be modified by any task. T7 creates new components under `components/ui/`.
+
+**Depends on:** Nothing. Can start immediately.
+
+**Interface contract:** Each component exports a React component with typed props. Components use `forwardRef` where appropriate. All components accept a `className` prop for Tailwind overrides. No component imports from `lib/`, `hooks/`, or `app/`.
+
+**Tests (with React Testing Library):**
+- Each component renders without crashing (smoke test)
+- Button renders children, handles click, supports `disabled` state
+- Input forwards ref, calls `onChange`
+- Card renders header, content, footer slots
+- Skeleton renders with correct Tailwind animation class
+- Collapsible toggles content visibility
+
+**Done when:** All component tests pass. No imports from `lib/` or `hooks/`. `bun run build` succeeds.
+
+---
+
+##### T8: Auth Routes + Login Page + Signup Page
+
+**Overview:** Implement all authentication flows — the login page (email/password + Google OAuth), the signup page (email/password registration), the server actions for email/password auth, and the OAuth callback route handler. The callback and server actions ensure the user's workspace exists and redirect to `/w/:workspaceId`.
+
+**File Ownership:**
+| File | Action |
+|------|--------|
+| `src/app/(auth)/login/page.tsx` | Modify (already exists at `src/app/login/page.tsx` — move to route group, add email/password form) |
+| `src/app/(auth)/signup/page.tsx` | Create (email/password registration page) |
+| `src/app/auth/actions.ts` | Modify (add `signUpWithEmail`, `signInWithEmail` server actions alongside existing `signInWithGoogle`) |
+| `src/app/(auth)/auth/callback/route.ts` | Create (Supabase OAuth callback — unchanged from original design) |
+
+**Depends on:** T1 (Supabase client, types including `AuthFormState`), T3 (middleware protects routes), T4 (`getOrCreateWorkspace`, `getWorkspaceForUser`)
+
+**Interface contract:**
+
+*Login page (`/login`):*
+- Renders an email/password form (email input, password input, submit button) at the top.
+- Below the form, a divider ("or continue with") separates the email form from the Google OAuth button.
+- The email form submits to the `signInWithEmail` server action.
+- Displays error messages from `AuthFormState` returned by the server action.
+- Links to `/signup` ("Don't have an account? Sign up").
+- The Google button calls `supabase.auth.signInWithOAuth({ provider: 'google', options: { redirectTo: '/auth/callback' } })`.
+
+*Signup page (`/signup`):*
+- Renders a registration form with email, password, and confirm password inputs.
+- Form submits to the `signUpWithEmail` server action.
+- Displays error messages from `AuthFormState`.
+- Links to `/login` ("Already have an account? Sign in").
+- Mirrors the styling of the login page.
+
+*Server actions (`src/app/auth/actions.ts`):*
+- `signInWithEmail(formData: FormData)`: extracts email/password from FormData, calls `supabase.auth.signInWithPassword({ email, password })`. On success, calls `getOrCreateWorkspace(userId, displayName)` and redirects to `/w/:workspaceId`. On failure, returns `AuthFormState` with error message.
+- `signUpWithEmail(formData: FormData)`: extracts email/password/confirmPassword from FormData. Validates passwords match (returns error if not). Calls `supabase.auth.signUp({ email, password })`. On success, calls `getOrCreateWorkspace(userId, displayName)` and redirects to `/w/:workspaceId`. On failure, returns `AuthFormState` with error message. Display name is derived from the email prefix (e.g., `alice@example.com` → `"alice"`).
+- Both forms are server-rendered using `<form action={serverAction}>` — no client components needed for the basic flow.
+
+*OAuth callback (`GET /auth/callback`):*
+- Reads `code` from search params, calls `supabase.auth.exchangeCodeForSession(code)`, calls `getOrCreateWorkspace(userId, displayName)`, redirects to `/w/:workspaceId`.
+- On error (missing code, exchange failure): redirects to `/login?error=auth_failed`.
+
+**Tests:**
+- Login page renders email input, password input, and submit button
+- Login page renders the Google sign-in button
+- Login page renders "Don't have an account? Sign up" link to `/signup`
+- Signup page renders email, password, and confirm password inputs
+- Signup page renders "Already have an account? Sign in" link to `/login`
+- `signInWithEmail`: with valid credentials, calls `signInWithPassword`, calls `getOrCreateWorkspace`, redirects to `/w/:workspaceId` (mock Supabase + DAL)
+- `signInWithEmail`: with invalid credentials, returns `AuthFormState` with error (mock Supabase to reject)
+- `signUpWithEmail`: with valid input, calls `signUp`, calls `getOrCreateWorkspace`, redirects to `/w/:workspaceId` (mock Supabase + DAL)
+- `signUpWithEmail`: with existing email, returns `AuthFormState` with error
+- `signUpWithEmail`: with mismatched passwords, returns `AuthFormState` with error (no Supabase call made)
+- Callback route with valid code: exchanges session, calls `getOrCreateWorkspace`, redirects to `/w/:workspaceId` (mock Supabase + DAL)
+- Callback route with missing code: redirects to `/login?error=auth_failed`
+- Callback route with exchange error: redirects to `/login?error=auth_failed`
+
+**Done when:** All tests pass. Login and signup pages build. Email/password and Google OAuth flows both work. Callback route handles happy path and error cases.
+
+---
+
+##### T9: Chat UI Components + Chat Stream Hook
+
+**Overview:** Build the chat interface components and the `useChatStream` hook that manages SSE streaming, message state, and reconnection logic.
+
+**File Ownership:**
+| File | Action |
+|------|--------|
+| `src/components/chat/message-list.tsx` | Create |
+| `src/components/chat/message-bubble.tsx` | Create |
+| `src/components/chat/tool-call-card.tsx` | Create |
+| `src/components/chat/chat-input.tsx` | Create |
+| `src/components/chat/chat-header.tsx` | Create |
+| `src/components/chat/index.ts` | Create (barrel export) |
+| `src/hooks/use-chat-stream.ts` | Create |
+
+**Depends on:** T1 (`lib/types.ts`), T7 (UI primitives for Button, Input, Card, Collapsible, ScrollArea)
+
+**Interface contract:**
+
+`useChatStream(chatSessionId: string)` returns:
+```typescript
+{
+  messages: Message[]           // Full message list (from DB + streaming)
+  sendMessage: (content: string) => Promise<void>
+  isStreaming: boolean
+  error: Error | null
+}
+```
+
+Behavior:
+- On mount: fetches messages from the Supabase client for the given `chatSessionId`.
+- If the latest message is an `AssistantMessage` with `status === 'streaming'`: connects to `GET /api/runs/${msg.workflowRunId}?startIndex=0` for reconnection (no null check needed — `workflowRunId` is always present on `AssistantMessage`).
+- `sendMessage`: POSTs to `/api/chat` with `{ chatSessionId, content }`. Reads the SSE response stream and appends tokens to a streaming assistant message. On stream end, marks message as completed.
+- Optimistic update: immediately adds the user message to `messages` before the POST completes.
+
+Component contracts:
+- `MessageList`: receives `messages: Message[]`, `isStreaming: boolean`. Renders a list of `MessageBubble` components. Auto-scrolls to bottom on new messages.
+- `MessageBubble`: receives a single `Message`. Renders `text` parts as markdown (use a markdown renderer). Renders tool-call parts as `ToolCallCard`. Styles differ for `user` vs `assistant` roles.
+- `ToolCallCard`: renders a collapsible card showing tool name, input params, and output. Shows a loading spinner when `state !== 'output-available'`.
+- `ChatInput`: text input + send button. Calls `onSend(content)` on submit. Disabled when `isStreaming` is true.
+- `ChatHeader`: displays chat session title or "New Chat". No data fetching — receives title as prop.
+
+**Tests:**
+- `useChatStream`: on mount, fetches messages (mock Supabase). Returns `messages` array.
+- `useChatStream.sendMessage`: POSTs to `/api/chat`, updates messages optimistically (mock fetch)
+- `useChatStream`: reconnects to `/api/runs/:runId` when latest message is streaming (mock EventSource)
+- `MessageBubble`: renders text parts as markdown content
+- `MessageBubble`: renders tool-call parts as `ToolCallCard`
+- `ToolCallCard`: shows tool name, toggles input/output on expand
+- `ChatInput`: calls `onSend` on form submit, clears input
+- `ChatInput`: disabled when `isStreaming` is true
+- `MessageList`: auto-scrolls when new message is added
+
+**Done when:** All tests pass. Components render with mock data. Hook manages state transitions correctly.
+
+---
+
+##### T10: Sidebar + Session List Hook
+
+**Overview:** Build the sidebar navigation, session list, and the `useChatSessions` hook for managing chat session state.
+
+**File Ownership:**
+| File | Action |
+|------|--------|
+| `src/components/sidebar/sidebar.tsx` | Create |
+| `src/components/sidebar/session-list.tsx` | Create |
+| `src/components/sidebar/index.ts` | Create (barrel export) |
+| `src/hooks/use-chat-sessions.ts` | Create |
+
+**Depends on:** T1 (`lib/types.ts`), T7 (UI primitives for Button, ScrollArea)
+
+**Interface contract:**
+
+`useChatSessions(workspaceId: string)` returns:
+```typescript
+{
+  sessions: ChatSession[]
+  createSession: () => Promise<ChatSession>
+  isLoading: boolean
+}
+```
+
+Behavior:
+- On mount: fetches chat sessions from Supabase for the workspace, sorted by `updatedAt` descending.
+- `createSession`: POSTs to create a new session (via Supabase client directly), navigates to `/w/:workspaceId/chat/:chatId`.
+
+Component contracts:
+- `Sidebar`: renders the sidebar shell — logo/branding, "New Chat" button, `SessionList`, user menu area. Accepts `workspaceId` as prop. Is collapsible on mobile.
+- `SessionList`: receives `sessions: ChatSession[]` and `activeChatId: string | null`. Renders each session as a link. Active session is visually highlighted. Sessions show title or "Untitled Chat".
+
+**Tests:**
+- `useChatSessions`: on mount, fetches sessions (mock Supabase). Returns sorted list.
+- `useChatSessions.createSession`: inserts a session, returns `ChatSession`, triggers navigation (mock `useRouter`)
+- `SessionList`: renders session titles
+- `SessionList`: highlights the active session based on `activeChatId`
+- `Sidebar`: renders "New Chat" button that calls `createSession`
+- `Sidebar`: is collapsible (toggle button hides session list)
+
+**Done when:** All tests pass. Sidebar renders with mock sessions.
+
+---
+
+##### T11: Integration Settings (UI + OAuth Routes + API Route)
+
+**Overview:** Implement the full Google Drive integration flow — the settings page UI, the Drive OAuth initiation/callback routes, and the disconnect API route.
+
+**File Ownership:**
+| File | Action |
+|------|--------|
+| `src/components/integrations/integration-card.tsx` | Create |
+| `src/components/integrations/index.ts` | Create (barrel export) |
+| `src/app/(app)/w/[workspaceId]/settings/integrations/page.tsx` | Create |
+| `src/app/(auth)/auth/integrations/google-drive/route.ts` | Create (GET: initiate OAuth) |
+| `src/app/(auth)/auth/integrations/google-drive/callback/route.ts` | Create (GET: handle callback) |
+| `src/app/api/integrations/[provider]/route.ts` | Create (DELETE: disconnect) |
+
+**Depends on:** T1 (types + crypto), T4 (`getIntegration`, `upsertIntegration`, `deleteIntegration`, `updateRefreshToken`), T5 (`createOAuth2Client`, `getAuthUrl`, `exchangeCodeForTokens`, `revokeToken`), T7 (UI primitives for Card, Button, Badge)
+
+**Interface contract:**
+
+`IntegrationCard` props:
+```typescript
+{
+  provider: IntegrationProvider
+  status: 'not_connected' | 'active' | 'error'
+  email?: string              // Connected account email
+  onConnect: () => void
+  onDisconnect: () => void
+}
+```
+
+Route behavior:
+- `GET /auth/integrations/google-drive`: reads `workspaceId` from query params or cookies, generates a `state` token (containing `workspaceId` for the callback), calls `getAuthUrl(state)`, redirects to Google.
+- `GET /auth/integrations/google-drive/callback`: extracts `code` and `state`, verifies state, calls `exchangeCodeForTokens(code)`, extracts email from the ID token or userinfo, calls `upsertIntegration({ ..., refreshToken: tokens.refreshToken })` (the DAL handles encryption), redirects to `/w/:workspaceId/settings/integrations`.
+- `DELETE /api/integrations/:provider`: authenticates user, loads integration via `getIntegration` (which decrypts the token), calls `revokeToken(integration.refreshToken)`, calls `deleteIntegration(id)`. Returns `{ success: true }`.
+
+Settings page:
+- Fetches the user's integration status for Google Drive (via Supabase client → `integrations` table).
+- Renders `IntegrationCard` with the correct state.
+- "Connect" navigates to `/auth/integrations/google-drive?workspaceId=...`.
+- "Disconnect" calls `DELETE /api/integrations/google_drive`, reloads state on success.
+
+**Tests:**
+- `IntegrationCard`: renders "Connect" button when status is `not_connected`
+- `IntegrationCard`: renders email + "Disconnect" button when status is `active`
+- `IntegrationCard`: renders "Reconnect" button when status is `error`
+- OAuth initiation route: redirects to Google with correct scopes and state
+- OAuth callback route: exchanges code, upserts integration, redirects to settings (mock T4 + T5)
+- OAuth callback route with invalid state: returns error
+- Disconnect route: authenticates, revokes token, deletes integration (mock T4 + T5)
+- Disconnect route without auth: returns 401
+- Settings page: shows correct card state based on integration query
+
+**Done when:** All tests pass. Full connect/disconnect flow works with mocked dependencies.
+
+---
+
+##### T12: Chat API Route + Workflow + Reconnection Route
+
+**Overview:** Implement the core message-sending API, the durable workflow definition, and the stream reconnection endpoint. This is the integration layer — it orchestrates DAL, Drive, and AI Agent functions.
+
+**File Ownership:**
+| File | Action |
+|------|--------|
+| `src/app/api/chat/route.ts` | Create |
+| `src/app/api/chat/workflow.ts` | Create |
+| `src/app/api/runs/[runId]/route.ts` | Create |
+
+**Depends on:** T1 (types), T4 (all DAL functions), T5 (`getDriveClient`, drive helpers), T6 (`createDriveTools`, `runAgent`, `buildSystemPrompt`)
+
+**Interface contract:**
+
+`POST /api/chat`:
+- Request body: `{ chatSessionId: string, content: string }`
+- Authenticates user via `supabase.auth.getUser()`
+- Looks up the chat session via `getChatSession(chatSessionId)` to get `workspaceId`
+- Saves user message via `createUserMessage(chatSessionId, userId, content)`
+- Starts the durable workflow via `start(chatWorkflow, [chatSessionId, userMessage.id, userId, workspaceId])`
+- Creates pending assistant message via `createPendingAssistantMessage(chatSessionId, run.id)`
+- Returns `new Response(run.readable, { headers: { 'Content-Type': 'text/event-stream' } })`
+- On error: returns appropriate HTTP status (401 for unauth, 404 for missing session, 500 for internal)
+
+`chatWorkflow(chatSessionId, userMessageId, userId, workspaceId)`:
+- Step 1: `loadHistory` — calls `listMessages(chatSessionId)` to get conversation history
+- Step 2: `buildTools` — calls `getIntegration(userId, workspaceId, 'google_drive')` (which decrypts the refresh token). If integration exists, creates a drive client via `getDriveClient(integration.refreshToken)` and tools via `createDriveTools(drive)`. If not, tools are empty `{}`.
+- Step 3: `runAgentStep` — calls `runAgent({ messages: history, tools, systemPrompt: buildSystemPrompt(), onChunk })`. Writes chunks to the workflow stream via `getWritable()`.
+- Step 4: `saveResponse` — calls `completeAssistantMessage(assistantMessageId, result.parts)`.
+- On error in any step: calls `failAssistantMessage(assistantMessageId)`, rethrows.
+
+`GET /api/runs/:runId`:
+- Reads optional `startIndex` from query params (default `0`)
+- Calls `getRun(params.runId)`, gets readable stream via `run.getReadable({ startIndex })`
+- Returns SSE response
+
+**Tests:**
+- `POST /api/chat`: with valid auth + session, saves user message, starts workflow, returns SSE stream (mock all DAL + workflow)
+- `POST /api/chat`: without auth, returns 401
+- `POST /api/chat`: with invalid chatSessionId, returns 404
+- `chatWorkflow`: loads history, builds tools (with integration), runs agent, saves response (mock all deps)
+- `chatWorkflow`: with no Drive integration, runs agent with empty tools
+- `chatWorkflow`: on agent error, calls `failAssistantMessage` (mock agent to throw)
+- `GET /api/runs/:runId`: returns a readable stream (mock workflow `getRun`)
+- `GET /api/runs/:runId?startIndex=5`: passes startIndex to `getReadable`
+
+**Done when:** All tests pass. The workflow correctly orchestrates the full sequence. Error paths are handled.
+
+---
+
+##### T13: App Shell + Assembled Pages
+
+**Overview:** Create the authenticated layout (auth guard + workspace validation + sidebar) and assemble the final pages by composing the components built in earlier tasks. This is the final assembly — it wires together components, hooks, and layout.
+
+**File Ownership:**
+| File | Action |
+|------|--------|
+| `src/app/(app)/w/[workspaceId]/layout.tsx` | Create |
+| `src/app/(app)/w/[workspaceId]/page.tsx` | Create (workspace home — chat session list) |
+| `src/app/(app)/w/[workspaceId]/chat/[chatId]/page.tsx` | Create |
+
+**Depends on:** T3 (middleware handles initial auth redirect, but layout double-checks), T8 (auth callback creates workspace — needed for redirects), T9 (chat components + `useChatStream`), T10 (sidebar components + `useChatSessions`), T12 (API routes must exist for hooks to call)
+
+**Interface contract:**
+
+`layout.tsx`:
+- Server component. Calls `supabase.auth.getUser()` — if no user, redirect to `/login`.
+- Validates that the user is a member of the workspace in the URL (`workspaceId` from params). If not, redirect to their actual workspace.
+- Fetches workspace data for the sidebar header.
+- Renders the sidebar + main content area (`{children}`).
+
+`page.tsx` (workspace home):
+- Client component. Uses `useChatSessions(workspaceId)` to list sessions.
+- Renders a "New Chat" button + session list. Clicking a session navigates to `/w/:workspaceId/chat/:chatId`.
+- Shows a skeleton/loading state while sessions load.
+
+`chat/[chatId]/page.tsx`:
+- Client component. Uses `useChatStream(chatId)` for messages + streaming.
+- Renders `ChatHeader` + `MessageList` + `ChatInput`.
+- Passes `sendMessage` from the hook to `ChatInput.onSend`.
+- Passes `messages` and `isStreaming` to `MessageList`.
+
+**Tests:**
+- Layout redirects to `/login` when user is not authenticated (mock Supabase)
+- Layout redirects to correct workspace when user is not a member of URL workspace (mock Supabase)
+- Layout renders sidebar + children when authenticated
+- Workspace home page renders session list (mock `useChatSessions`)
+- Workspace home page "New Chat" button calls `createSession`
+- Chat page renders chat components (mock `useChatStream`)
+- Chat page passes `sendMessage` to `ChatInput`
+- `bun run build` succeeds with the full application
+
+**Done when:** All tests pass. `bun run build` produces a working build. The full app shell renders with sidebar, session list, and chat interface.
+
+#### 7.6.4 Summary
+
+```
+┌─────────┬────────────────────────────────────────────────────────────────────┐
+│  Wave   │  Tasks (all tasks within a wave run in parallel)                   │
+├─────────┼────────────────────────────────────────────────────────────────────┤
+│  1      │  T1 (Foundation), T2 (Migrations), T7 (UI Primitives)             │
+│  2      │  T3 (Middleware), T4 (DAL), T5 (Google Drive), T6 (AI Agent)      │
+│  3      │  T8 (Auth), T9 (Chat UI), T10 (Sidebar), T11 (Integrations)      │
+│  4      │  T12 (Workflow + API)                                             │
+│  5      │  T13 (App Shell + Pages)                                          │
+└─────────┴────────────────────────────────────────────────────────────────────┘
+```
+
+**Critical path:** T1 → T4 → T12 → T13 (4 sequential steps)
+
+**Maximum parallelism:** 4 tasks in Wave 2, 4 tasks in Wave 3
+
+**Total tasks:** 13 | **Parallelizable:** 11 of 13 (only T12 and T13 are strictly sequential)
 
 ---
 
@@ -885,11 +1921,11 @@ After the workflow completes, the Redis stream may expire (TTL is not documented
 ```typescript
 // Frontend logic on page load
 const messages = await supabase.from('messages').select('*').eq('chat_session_id', id);
-const lastAssistant = messages.findLast(m => m.role === 'assistant');
+const lastAssistant = messages.findLast((m): m is AssistantMessage => m.role === 'assistant');
 
-if (lastAssistant.status === 'streaming') {
-  // Reconnect to live stream
-  connectToStream(lastAssistant.workflow_run_id);
+if (lastAssistant?.status === 'streaming') {
+  // Reconnect to live stream — workflowRunId is always present on AssistantMessage
+  connectToStream(lastAssistant.workflowRunId);
 } else {
   // Render from DB — stream is done (or never started)
   renderMessages(messages);
@@ -1150,9 +2186,7 @@ CREATE TABLE integrations (
   provider integration_provider NOT NULL,
   status integration_status NOT NULL DEFAULT 'active',
   provider_account_email TEXT,
-  access_token TEXT NOT NULL,
-  refresh_token TEXT,
-  token_expires_at TIMESTAMPTZ,
+  encrypted_refresh_token TEXT NOT NULL,         -- AES-256-GCM encrypted, base64-encoded
   created_at TIMESTAMPTZ DEFAULT now() NOT NULL,
   updated_at TIMESTAMPTZ DEFAULT now() NOT NULL,
   UNIQUE(user_id, workspace_id, provider)
@@ -1163,28 +2197,23 @@ The `workspace_id` column still scopes the integration to a workspace (so if a u
 
 ### Impact on Agent Tools
 
-The Drive tools (Appendix C) already receive a `userId` parameter. The only change is how `getDriveClient(userId)` resolves the token:
+The Drive tools (Appendix C) already receive a `userId` parameter. The change is two-fold: (1) the DAL's `getIntegration` handles decryption of the stored refresh token, and (2) `getDriveClient` accepts a plaintext refresh token directly:
 
 ```typescript
-async function getDriveClient(userId: string, workspaceId: string) {
-  const integration = await supabase
-    .from('integrations')
-    .select('*')
-    .eq('user_id', userId)
-    .eq('workspace_id', workspaceId)
-    .eq('provider', 'google_drive')
-    .eq('status', 'active')
-    .single();
+// In the workflow (T12) — the orchestration layer
+const integration = await getIntegration(userId, workspaceId, 'google_drive');
+// integration.refreshToken is already decrypted by the DAL
 
-  if (!integration.data) {
-    throw new Error('Google Drive not connected. Connect it in Settings > Integrations.');
-  }
+const drive = getDriveClient(integration.refreshToken);
+// googleapis auto-fetches a fresh access token using the refresh token
 
-  const oauth2Client = new google.auth.OAuth2(...);
-  oauth2Client.setCredentials({
-    access_token: integration.data.access_token,
-    refresh_token: integration.data.refresh_token,
-  });
+// getDriveClient implementation (lib/google/drive.ts)
+function getDriveClient(refreshToken: string): drive_v3.Drive {
+  const oauth2Client = new google.auth.OAuth2(
+    process.env.GOOGLE_CLIENT_ID,
+    process.env.GOOGLE_CLIENT_SECRET,
+  );
+  oauth2Client.setCredentials({ refresh_token: refreshToken });
 
   return google.drive({ version: 'v3', auth: oauth2Client });
 }
@@ -1193,3 +2222,132 @@ async function getDriveClient(userId: string, workspaceId: string) {
 ### Future: Adding Workspace-Level Shared Drives
 
 When needed, add a separate `workspace_integrations` table for shared resources (e.g., a Google Workspace service account). The agent tool fallback chain becomes: user token → workspace token → error. This is the hybrid approach (Option 3), built on top of per-user tokens — no migration needed.
+
+---
+
+## Appendix H: Token Encryption Strategy
+
+### The Problem
+
+The `integrations` table stores Google OAuth refresh tokens. These are long-lived credentials that grant read access to a user's Google Drive. Storing them as plaintext in the database is a security anti-pattern — if the database is compromised (SQL injection, leaked backup, insider threat), all tokens are immediately usable.
+
+Google's OAuth best practices explicitly state: *"For server-side applications that store tokens for many users, encrypt them at rest."*
+
+### Options Considered
+
+#### Option 1: Plaintext with RLS
+
+Store tokens as `TEXT` columns, rely on RLS to restrict client access.
+
+- **Pros:** Simplest possible implementation.
+- **Cons:** Tokens are plaintext in the DB, backups, logs, and replication streams. RLS is access control, not data protection. Anyone with DB-level read access (admin, service role, backup reader) sees working tokens. Not recommended by OWASP or Google.
+- **Verdict:** Rejected. Not acceptable for production.
+
+#### Option 2: pgcrypto Column Encryption + Supabase Vault for Key
+
+Encrypt token columns with PostgreSQL's `pgp_sym_encrypt()` using an AES-256 key stored in Supabase Vault.
+
+- **Pros:** Encrypted at rest in the DB. Key managed by Vault (encrypted by libsodium, key never stored in DB dumps).
+- **Cons:** Requires `SECURITY DEFINER` functions or RPC calls to decrypt — cannot use `supabase-js` `.select()` directly. Statement logging can expose plaintext on INSERT. Vault is designed for a small number of infrastructure secrets, not high-throughput per-user data.
+- **Verdict:** Viable but adds unnecessary coupling to Supabase-specific APIs and complicates the DAL.
+
+#### Option 3: Application-Level AES-256-GCM Encryption (Chosen)
+
+Encrypt tokens in the Next.js application layer using Node.js `crypto` before writing to the DB. The column stores base64-encoded ciphertext. The encryption key is an environment variable.
+
+- **Pros:** Simple — two utility functions (`encrypt`, `decrypt`). Works with any database. The DAL is the only layer that touches crypto — callers receive plaintext. Encryption key lives in Vercel's environment variable system (not in the DB, not in source control).
+- **Cons:** Key rotation requires re-encrypting all rows (mitigated by the small number of integrations). No hardware key management (acceptable at this scale).
+- **Verdict:** Chosen. Best balance of security, simplicity, and portability.
+
+### Implementation
+
+#### Encryption Module (`lib/crypto.ts`)
+
+```typescript
+import { createCipheriv, createDecipheriv, randomBytes } from 'crypto'
+
+const ALGORITHM = 'aes-256-gcm'
+const IV_LENGTH = 12    // 96-bit IV recommended for GCM
+const TAG_LENGTH = 16   // 128-bit auth tag
+
+function getKey(): Buffer {
+  const key = process.env.TOKEN_ENCRYPTION_KEY
+  if (!key) throw new Error('TOKEN_ENCRYPTION_KEY is not set')
+  return Buffer.from(key, 'hex')  // 32 bytes = 256 bits
+}
+
+export function encrypt(plaintext: string): string {
+  const iv = randomBytes(IV_LENGTH)
+  const cipher = createCipheriv(ALGORITHM, getKey(), iv)
+  const encrypted = Buffer.concat([cipher.update(plaintext, 'utf8'), cipher.final()])
+  const tag = cipher.getAuthTag()
+  // Format: iv (12 bytes) + tag (16 bytes) + ciphertext
+  return Buffer.concat([iv, tag, encrypted]).toString('base64')
+}
+
+export function decrypt(ciphertext: string): string {
+  const buf = Buffer.from(ciphertext, 'base64')
+  const iv = buf.subarray(0, IV_LENGTH)
+  const tag = buf.subarray(IV_LENGTH, IV_LENGTH + TAG_LENGTH)
+  const encrypted = buf.subarray(IV_LENGTH + TAG_LENGTH)
+  const decipher = createDecipheriv(ALGORITHM, getKey(), iv)
+  decipher.setAuthTag(tag)
+  return decipher.update(encrypted) + decipher.final('utf8')
+}
+```
+
+#### Generating the Encryption Key
+
+```bash
+# Generate a 32-byte (256-bit) random key as hex
+node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
+# Add to .env.local as TOKEN_ENCRYPTION_KEY=<output>
+```
+
+#### How It Flows Through the System
+
+```
+OAuth callback (T11)
+  → exchangeCodeForTokens(code) returns { accessToken, refreshToken }
+  → upsertIntegration({ ..., refreshToken })          ← plaintext
+     → DAL calls encrypt(refreshToken)                 ← lib/crypto.ts
+     → INSERT encrypted_refresh_token = <ciphertext>   ← DB stores ciphertext
+
+Workflow (T12) needs Drive access
+  → getIntegration(userId, workspaceId, 'google_drive')
+     → DAL SELECTs encrypted_refresh_token
+     → DAL calls decrypt(encrypted_refresh_token)      ← lib/crypto.ts
+     → Returns Integration { refreshToken: <plaintext> }
+  → getDriveClient(integration.refreshToken)           ← googleapis fetches fresh access token
+
+Disconnect (T11)
+  → getIntegration(...)                                ← decrypts
+  → revokeToken(integration.refreshToken)              ← revokes with Google
+  → deleteIntegration(id)                              ← row deleted
+```
+
+### What We Don't Store
+
+**Access tokens are not persisted.** Google access tokens expire in ~1 hour. The `googleapis` library automatically fetches a fresh access token from Google using the refresh token on each API call. There is no reason to store a value that expires before the next request. This simplifies the schema (one encrypted column instead of two) and reduces blast radius.
+
+### Security Properties
+
+| Threat | Mitigation |
+|--------|-----------|
+| DB backup leaked | Attacker gets ciphertext — useless without `TOKEN_ENCRYPTION_KEY` |
+| SQL injection (read) | Attacker gets ciphertext — cannot decrypt without the env var |
+| Insider with DB access | Sees encrypted bytes, not plaintext tokens |
+| Log exposure | DAL writes ciphertext to DB — plaintext never appears in SQL logs |
+| Key compromise | Rotate key + re-encrypt all rows (small number of integrations). Revoke all tokens via Google API as a precaution. |
+| Tampered ciphertext | GCM authentication tag detects modification — `decrypt` throws |
+
+### Future: Key Rotation
+
+If the encryption key needs to be rotated:
+
+1. Generate a new key.
+2. Run a migration script: decrypt all rows with the old key, re-encrypt with the new key.
+3. Update the `TOKEN_ENCRYPTION_KEY` environment variable.
+4. Deploy.
+
+With per-user integrations (small number of rows), this is a trivial batch operation. If the number of integrations grows large, add a `key_version` column to support gradual rotation (decrypt with the version-appropriate key).
