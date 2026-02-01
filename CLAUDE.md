@@ -138,7 +138,7 @@ Phase 3 (serial):
 - **Write tests before writing implementation code.** This applies to both unit tests and integration tests.
 - Tests serve as the acceptance criteria — an implementation is correct when all tests pass.
 - Use the test file to encode the expected behavior of the interface so that agents working in parallel have a concrete, runnable spec.
-- Run tests with: `bun test`
+- Run tests with: `bun run test`
 - Place test files adjacent to the code they test using the `*.test.ts` / `*.test.tsx` naming convention.
 
 ## Key Conventions
@@ -161,7 +161,7 @@ bun install          # Install dependencies
 bun run dev          # Start dev server
 bun run build        # Production build
 bun run lint         # Run ESLint
-bun test             # Run tests
+bun run test         # Run tests (vitest)
 ```
 
 ## Agent Identity
