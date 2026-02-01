@@ -15,6 +15,7 @@ All 14 tasks from the design doc are now complete. The app shell and assembled p
 
 ## Recently Completed
 
+- **20260201182012 - Migrate AI SDK to use OpenRouter** — Completed 2026-02-01
 - **20260201180135 - Auto-Generate Chat Session Title** — Completed 2026-02-01
 - **20260201174250 - Settings Page & Sidebar Navigation** — Completed 2026-02-01
 - **20260201142900 - App Shell + Assembled Pages** — Completed 2026-02-01

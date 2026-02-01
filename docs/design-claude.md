@@ -1042,7 +1042,7 @@ Wave 5 (after T3+T8+T9+T10+T12): T13              ← final assembly
 ```
 @supabase/ssr @supabase/supabase-js
 googleapis
-ai @ai-sdk/anthropic @ai-sdk/react
+ai @openrouter/ai-sdk-provider @ai-sdk/react
 workflow
 zod
 vitest @testing-library/react @testing-library/jest-dom jsdom
@@ -1056,7 +1056,7 @@ SUPABASE_SERVICE_ROLE_KEY=          # Supabase service role key (server only)
 GOOGLE_CLIENT_ID=                   # Google OAuth client ID
 GOOGLE_CLIENT_SECRET=               # Google OAuth client secret
 GOOGLE_REDIRECT_URI=                # e.g. http://localhost:3000/auth/integrations/google-drive/callback
-ANTHROPIC_API_KEY=                  # Anthropic API key for Claude
+OPENROUTER_API_KEY=                 # OpenRouter API key (https://openrouter.ai/keys)
 TOKEN_ENCRYPTION_KEY=               # 32-byte hex key for AES-256-GCM token encryption (see Appendix H)
 ```
 

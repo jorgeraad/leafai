@@ -14,8 +14,8 @@ vi.mock('ai', () => {
   return { streamText, generateId, stepCountIs, tool }
 })
 
-vi.mock('@ai-sdk/anthropic', () => ({
-  anthropic: vi.fn((model: string) => ({ modelId: model })),
+vi.mock('@openrouter/ai-sdk-provider', () => ({
+  openrouter: vi.fn((model: string) => ({ modelId: model })),
 }))
 
 function createMockDrive() {

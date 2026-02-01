@@ -1,5 +1,5 @@
 import { generateText } from 'ai'
-import { anthropic } from '@ai-sdk/anthropic'
+import { openrouter } from '@openrouter/ai-sdk-provider'
 
 const TITLE_PROMPT = `Generate a concise title (2-5 words) for a chat conversation that starts with the following message. Return ONLY the title, nothing else. No quotes, no punctuation at the end, no explanation.`
 
@@ -14,7 +14,7 @@ export function validateTitle(title: string): string | null {
 
 export async function generateTitle(messageContent: string): Promise<string> {
   const { text } = await generateText({
-    model: anthropic('claude-sonnet-4-20250514'),
+    model: openrouter('anthropic/claude-sonnet-4-20250514'),
     system: TITLE_PROMPT,
     messages: [{ role: 'user', content: messageContent }],
     maxOutputTokens: 30,

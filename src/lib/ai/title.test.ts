@@ -39,8 +39,8 @@ vi.mock('ai', () => ({
   generateText: vi.fn(),
 }))
 
-vi.mock('@ai-sdk/anthropic', () => ({
-  anthropic: vi.fn(() => 'mock-model'),
+vi.mock('@openrouter/ai-sdk-provider', () => ({
+  openrouter: vi.fn(() => 'mock-model'),
 }))
 
 describe('generateTitle', () => {
