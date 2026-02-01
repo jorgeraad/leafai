@@ -1,4 +1,5 @@
 import { createClient } from '@/lib/supabase/server'
+import { createAdminClient } from '@/lib/supabase/admin'
 import type { Workspace } from '@/lib/types'
 
 function toWorkspace(row: { id: string; name: string; created_at: string; updated_at: string }): Workspace {
@@ -11,14 +12,15 @@ function toWorkspace(row: { id: string; name: string; created_at: string; update
 }
 
 export async function getOrCreateWorkspace(userId: string, displayName: string): Promise<Workspace> {
-  const supabase = await createClient()
-
   // Check if user already has a workspace
   const existing = await getWorkspaceForUser(userId)
   if (existing) return existing
 
+  // Use admin client to bypass RLS for INSERT (no INSERT policy by design)
+  const admin = createAdminClient()
+
   // Create workspace
-  const { data: workspace, error: wsError } = await supabase
+  const { data: workspace, error: wsError } = await admin
     .from('workspaces')
     .insert({ name: `${displayName}'s Workspace` })
     .select()
@@ -27,7 +29,7 @@ export async function getOrCreateWorkspace(userId: string, displayName: string):
   if (wsError || !workspace) throw new Error(`Failed to create workspace: ${wsError?.message}`)
 
   // Add user as member
-  const { error: memberError } = await supabase
+  const { error: memberError } = await admin
     .from('workspace_members')
     .insert({ workspace_id: workspace.id, user_id: userId })
 

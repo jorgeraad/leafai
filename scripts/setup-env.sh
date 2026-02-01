@@ -21,6 +21,7 @@ STATUS=$(supabase status --output json 2>/dev/null) || {
 
 API_URL=$(echo "$STATUS" | jq -r '.API_URL // .api_url')
 ANON_KEY=$(echo "$STATUS" | jq -r '.ANON_KEY // .anon_key')
+SERVICE_ROLE_KEY=$(echo "$STATUS" | jq -r '.SERVICE_ROLE_KEY // .service_role_key')
 
 if [ -z "$API_URL" ] || [ "$API_URL" = "null" ]; then
   echo "Error: Could not parse API_URL from supabase status" >&2
@@ -32,6 +33,7 @@ ENV_FILE="$(dirname "$0")/../.env.local"
 cat > "$ENV_FILE" <<EOF
 NEXT_PUBLIC_SUPABASE_URL=$API_URL
 NEXT_PUBLIC_SUPABASE_ANON_KEY=$ANON_KEY
+SUPABASE_SERVICE_ROLE_KEY=$SERVICE_ROLE_KEY
 NEXT_PUBLIC_SITE_URL=http://127.0.0.1:3000
 EOF
 

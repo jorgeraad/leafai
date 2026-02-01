@@ -14,6 +14,7 @@ All 13 implementation tasks have been created from the design doc (Section 7.6.3
 
 ## Recently Completed
 
+- **20260201171633 - Fix Workspace Creation Blocked by RLS** — Completed 2026-02-01
 - **20260201142859 - Chat API + Workflow + Reconnection** — Completed 2026-02-01
 - **20260201142855 - Auth Routes + Login + Signup** — Completed 2026-02-01
 - **20260201142858 - Integration Settings** — Completed 2026-02-01
