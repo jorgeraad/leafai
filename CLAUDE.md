@@ -38,6 +38,7 @@ supabase/
   migrations/       # SQL migration files
 scripts/
   setup-env.sh      # Generates .env.local from local Supabase status
+  create-worktree.sh # Creates git worktrees in a sibling leaf-worktrees/ directory
 ```
 
 ## Runtime & Package Manager
@@ -127,6 +128,33 @@ bun run build        # Production build
 bun run lint         # Run ESLint
 bun test             # Run tests
 ```
+
+## Task Management
+
+**All agents must follow the task management system defined in [`docs/task-management.md`](docs/task-management.md).** Read it before starting any non-trivial work.
+
+Key points (the full doc has detailed workflows, checklists, and rules):
+
+- **Task files** live in `docs/tasks/` and move through `todo/` → `in-progress/` → `completed/`.
+- **`docs/tasks/current-progress.md`** is the first file to read when starting a session. It lists what's ready, in progress, recently completed, and blocked.
+- **Blocked-By** — each task declares which other tasks must complete before it can start. Never start a blocked task.
+- **Touches** — each task declares which files/directories it will modify. Before starting, check for overlaps with in-progress tasks and coordinate if needed.
+- **Timestamps** — always use `date '+%Y-%m-%d %H:%M:%S %Z'`. Never guess.
+- **Keep tasks narrow** so many can run in parallel.
+
+### Delegate task bookkeeping to a sub-agent
+
+The orchestrator agent should **not** spend its own context on task file updates. Instead, delegate all task management operations to a dedicated sub-agent. This keeps the orchestrator focused on planning and coordination.
+
+**When to spawn a task-management sub-agent:**
+- Creating new task files (pass it the task title, description, acceptance criteria, Blocked-By, Touches, and References — let it handle numbering, timestamps, file creation, and updating `current-progress.md`).
+- Starting a task (pass the task number — let it handle the dependency check, overlap check, file move, status update, and `current-progress.md` update).
+- Updating a task mid-work (pass the task number and what to log — let it handle the timestamp, progress log append, and any Touches changes).
+- Completing a task (pass the task number and summary — let it handle the file move, final log entry, criteria check-off, `current-progress.md` update, and unblocking downstream tasks).
+
+**What to tell the sub-agent:** Always instruct it to read `docs/task-management.md` for the full procedure. Give it the specific operation (create / start / update / complete), the relevant task number or details, and let it handle everything else. The sub-agent should report back with a brief confirmation (e.g., "Created task 0005 in todo/, updated current-progress.md") so the orchestrator stays informed without having to read the task files itself.
+
+**Batch when possible:** If you need to create multiple tasks at once (e.g., after decomposing a feature), spawn a single sub-agent with all the task details rather than one sub-agent per task. Similarly, if completing one task unblocks others, let the completing sub-agent handle the unblocking updates in the same pass.
 
 **Note on dev server ports:** Multiple agents may be working in parallel on the same machine in separate Git worktrees, each running their own dev server. The dev server will not always be on port 3000 — it auto-increments when a port is taken (3001, 3002, etc.). Always read the actual port from the `bun run dev` output and use that port for any subsequent requests or browser checks.
 
