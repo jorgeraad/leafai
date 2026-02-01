@@ -5,13 +5,12 @@
 # Safe to source - will not exit your shell on error
 
 _create_worktree() {
-    local ROOT_WORKTREE_PATH WORKTREES_DIR WORKTREES_CONFIG
-    local worktree_name suffix dir_name worktree_path branch_name cmd expanded_cmd
+    local ROOT_WORKTREE_PATH WORKTREES_DIR
+    local worktree_name suffix dir_name worktree_path branch_name
 
     # Get the git repo root (works regardless of how script is invoked)
     ROOT_WORKTREE_PATH="$(git rev-parse --show-toplevel)" || { echo "Error: Not in a git repository"; return 1; }
     WORKTREES_DIR="$ROOT_WORKTREE_PATH/../leaf-worktrees"
-    WORKTREES_CONFIG="$ROOT_WORKTREE_PATH/.cursor/worktrees.json"
 
     # Function to convert string to kebab-case
     _to_kebab_case() {
@@ -64,41 +63,13 @@ _create_worktree() {
     echo "Branch: $branch_name"
     echo "Path: $worktree_path"
 
-    # Run setup commands from worktrees.json
-    if [ -f "$WORKTREES_CONFIG" ]; then
-        echo ""
-        echo "Running setup commands..."
-
-        # Export ROOT_WORKTREE_PATH for use in commands
-        export ROOT_WORKTREE_PATH
-
-        # Change to the new worktree directory
-        cd "$worktree_path" || { echo "Error: Failed to cd to worktree"; return 1; }
-
-        # Parse and execute each command from the setup-worktree array
-        # Using python for reliable JSON parsing
-        python3 -c "
-import json
-import sys
-
-with open('$WORKTREES_CONFIG', 'r') as f:
-    config = json.load(f)
-
-commands = config.get('setup-worktree', [])
-for cmd in commands:
-    print(cmd)
-" | while read -r cmd; do
-            # Expand environment variables in the command
-            expanded_cmd=$(eval echo "$cmd")
-            echo "Running: $expanded_cmd"
-            eval "$expanded_cmd"
-        done
-
-        echo ""
-        echo "Setup complete!"
-    else
-        echo "Warning: worktrees.json not found at $WORKTREES_CONFIG"
-    fi
+    # Copy environment files to the new worktree
+    for env_file in .env .env.local; do
+        if [ -f "$ROOT_WORKTREE_PATH/$env_file" ]; then
+            cp "$ROOT_WORKTREE_PATH/$env_file" "$worktree_path/$env_file"
+            echo "Copied $env_file to worktree"
+        fi
+    done
 
     echo ""
     echo "Worktree ready at: $worktree_path"
