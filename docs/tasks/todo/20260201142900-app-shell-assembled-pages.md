@@ -3,8 +3,9 @@
 | Field              | Value |
 |--------------------|-------|
 | **Created**        | 2026-02-01 14:28:48 EST |
-| **Last Modified**  | 2026-02-01 14:28:48 EST |
+| **Last Modified**  | 2026-02-01 17:24:45 EST |
 | **Status**         | todo |
+| **Agent**          | — |
 | **Blocked-By**     | 20260201142850, 20260201142855, 20260201142856, 20260201142857, 20260201142859 |
 | **Touches**        | `src/app/(app)/w/[workspaceId]/layout.tsx`, `src/app/(app)/w/[workspaceId]/page.tsx`, `src/app/(app)/w/[workspaceId]/chat/[chatId]/page.tsx` |
 | **References**     | [Design Doc](../../design-claude.md) |
@@ -23,6 +24,10 @@ Create authenticated layout and assemble final pages. Wires together components,
 - [ ] Chat page renders chat components with hooks wired
 - [ ] `bun run build` succeeds
 - [ ] All tests pass
+
+## Implementation Steps
+
+- [ ] (To be decomposed when task is started)
 
 ## Progress Log
 
