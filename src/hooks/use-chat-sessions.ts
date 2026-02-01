@@ -53,6 +53,9 @@ export function useChatSessions(workspaceId: string): UseChatSessionsReturn {
   }, [workspaceId, supabase])
 
   const createSession = useCallback(async (): Promise<ChatSession> => {
+    const { data: userData } = await supabase.auth.getUser()
+    if (!userData.user) throw new Error("Not authenticated")
+
     const { data, error } = await supabase
       .from("chat_sessions")
       .insert({ workspace_id: workspaceId })
@@ -62,6 +65,11 @@ export function useChatSessions(workspaceId: string): UseChatSessionsReturn {
     if (error || !data) {
       throw new Error(error?.message ?? "Failed to create session")
     }
+
+    // Add the current user as a participant so RLS allows message reads
+    await supabase
+      .from("chat_participants")
+      .insert({ chat_session_id: data.id, user_id: userData.user.id })
 
     const session = rowToSession(data)
     setSessions((prev) => [session, ...prev])

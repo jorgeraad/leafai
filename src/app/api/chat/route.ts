@@ -43,7 +43,30 @@ export async function POST(req: Request) {
 
   await createPendingAssistantMessage(chatSessionId, run.runId)
 
-  return new Response(run.readable, {
+  // run.readable emits deserialized JS objects (via devalue).
+  // Transform them into SSE-formatted text for the client.
+  const encoder = new TextEncoder()
+  const workflowReader = (run.readable as ReadableStream).getReader()
+  const sseStream = new ReadableStream({
+    async pull(controller) {
+      try {
+        const { done, value } = await workflowReader.read()
+        if (done) {
+          controller.enqueue(encoder.encode('data: [DONE]\n\n'))
+          controller.close()
+          return
+        }
+        const line = `data: ${JSON.stringify(value)}\n\n`
+        controller.enqueue(encoder.encode(line))
+      } catch {
+        const errLine = `data: ${JSON.stringify({ type: 'error', message: 'Stream terminated unexpectedly' })}\n\n`
+        controller.enqueue(encoder.encode(errLine))
+        controller.close()
+      }
+    },
+  })
+
+  return new Response(sseStream, {
     headers: { 'Content-Type': 'text/event-stream' },
   })
 }

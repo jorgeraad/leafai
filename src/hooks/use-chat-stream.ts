@@ -58,16 +58,48 @@ export function useChatStream(chatSessionId: string): UseChatStreamReturn {
     )
 
     eventSource.onmessage = (event) => {
-      const chunk = JSON.parse(event.data) as MessagePart
-      setMessages((prev) => {
-        const updated = [...prev]
-        const idx = updated.findIndex((m) => m.id === msg.id)
-        if (idx !== -1) {
-          const existing = updated[idx] as AssistantMessage
-          updated[idx] = { ...existing, parts: [...existing.parts, chunk] }
+      try {
+        const chunk = JSON.parse(event.data)
+
+        if (chunk.type === "error") {
+          setError(new Error(chunk.message ?? "Workflow error"))
+          setMessages((prev) =>
+            prev.map((m) =>
+              m.id === msg.id
+                ? { ...(m as AssistantMessage), status: "error" as const }
+                : m
+            )
+          )
+          eventSource.close()
+          setIsStreaming(false)
+          return
         }
-        return updated
-      })
+
+        setMessages((prev) => {
+          const updated = [...prev]
+          const idx = updated.findIndex((m) => m.id === msg.id)
+          if (idx !== -1) {
+            const existing = updated[idx] as AssistantMessage
+            const newParts = [...existing.parts]
+
+            if (chunk.type === "text-delta") {
+              const last = newParts[newParts.length - 1]
+              if (last && last.type === "text") {
+                newParts[newParts.length - 1] = { ...last, text: last.text + chunk.text }
+              } else {
+                newParts.push({ type: "text", text: chunk.text })
+              }
+            } else {
+              newParts.push(chunk as MessagePart)
+            }
+
+            updated[idx] = { ...existing, parts: newParts }
+          }
+          return updated
+        })
+      } catch {
+        // skip malformed chunks
+      }
     }
 
     eventSource.addEventListener("done", () => {
@@ -75,7 +107,9 @@ export function useChatStream(chatSessionId: string): UseChatStreamReturn {
       setIsStreaming(false)
       setMessages((prev) =>
         prev.map((m) =>
-          m.id === msg.id ? { ...m, status: "completed" as const } : m
+          m.id === msg.id && m.status !== "error"
+            ? { ...(m as AssistantMessage), status: "completed" as const }
+            : m
         )
       )
     })
@@ -83,6 +117,13 @@ export function useChatStream(chatSessionId: string): UseChatStreamReturn {
     eventSource.onerror = () => {
       eventSource.close()
       setIsStreaming(false)
+      setMessages((prev) =>
+        prev.map((m) =>
+          m.id === msg.id && m.status !== "error"
+            ? { ...(m as AssistantMessage), status: "error" as const }
+            : m
+        )
+      )
     }
   }
 
@@ -153,16 +194,40 @@ export function useChatStream(chatSessionId: string): UseChatStreamReturn {
             if (payload === "[DONE]") continue
 
             try {
-              const chunk = JSON.parse(payload) as MessagePart
+              const chunk = JSON.parse(payload)
+
+              if (chunk.type === "error") {
+                setError(new Error(chunk.message ?? "Workflow error"))
+                setMessages((prev) =>
+                  prev.map((m) =>
+                    m.id === assistantTempId
+                      ? { ...(m as AssistantMessage), status: "error" as const }
+                      : m
+                  )
+                )
+                continue
+              }
+
               setMessages((prev) => {
                 const updated = [...prev]
                 const idx = updated.findIndex((m) => m.id === assistantTempId)
                 if (idx !== -1) {
                   const existing = updated[idx] as AssistantMessage
-                  updated[idx] = {
-                    ...existing,
-                    parts: [...existing.parts, chunk],
+                  const newParts = [...existing.parts]
+
+                  if (chunk.type === "text-delta") {
+                    // Accumulate text deltas into the last text part
+                    const last = newParts[newParts.length - 1]
+                    if (last && last.type === "text") {
+                      newParts[newParts.length - 1] = { ...last, text: last.text + chunk.text }
+                    } else {
+                      newParts.push({ type: "text", text: chunk.text })
+                    }
+                  } else {
+                    newParts.push(chunk as MessagePart)
                   }
+
+                  updated[idx] = { ...existing, parts: newParts }
                 }
                 return updated
               })
@@ -172,19 +237,25 @@ export function useChatStream(chatSessionId: string): UseChatStreamReturn {
           }
         }
 
-        // Mark completed
+        // Mark completed (only if not already errored)
         setMessages((prev) =>
           prev.map((m) =>
-            m.id === assistantTempId
-              ? { ...m, status: "completed" as const }
+            m.id === assistantTempId && m.status !== "error"
+              ? { ...(m as AssistantMessage), status: "completed" as const }
               : m
           )
         )
       } catch (err) {
         if ((err as Error).name !== "AbortError") {
           setError(err instanceof Error ? err : new Error(String(err)))
-          // Remove placeholder assistant message on error
-          setMessages((prev) => prev.filter((m) => m.id !== assistantTempId))
+          // Mark assistant message as error instead of removing it
+          setMessages((prev) =>
+            prev.map((m) =>
+              m.id === assistantTempId
+                ? { ...(m as AssistantMessage), status: "error" as const }
+                : m
+            )
+          )
         }
       } finally {
         setIsStreaming(false)

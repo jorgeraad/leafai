@@ -1,4 +1,5 @@
 import { createClient } from '@/lib/supabase/server'
+import { createAdminClient } from '@/lib/supabase/admin'
 import type { AssistantMessage, Message, MessagePart, UserMessage } from '@/lib/types'
 
 interface MessageRow {
@@ -33,7 +34,7 @@ function toMessage(row: MessageRow): Message {
 }
 
 export async function createUserMessage(chatSessionId: string, userId: string, content: string): Promise<UserMessage> {
-  const supabase = await createClient()
+  const supabase = createAdminClient()
 
   const parts: MessagePart[] = [{ type: 'text', text: content }]
 
@@ -55,7 +56,7 @@ export async function createUserMessage(chatSessionId: string, userId: string, c
 }
 
 export async function createPendingAssistantMessage(chatSessionId: string, workflowRunId: string): Promise<AssistantMessage> {
-  const supabase = await createClient()
+  const supabase = createAdminClient()
 
   const { data, error } = await supabase
     .from('messages')
@@ -75,7 +76,7 @@ export async function createPendingAssistantMessage(chatSessionId: string, workf
 }
 
 export async function completeAssistantMessage(messageId: string, parts: MessagePart[]): Promise<void> {
-  const supabase = await createClient()
+  const supabase = createAdminClient()
 
   const { error } = await supabase
     .from('messages')
@@ -86,7 +87,7 @@ export async function completeAssistantMessage(messageId: string, parts: Message
 }
 
 export async function failAssistantMessage(messageId: string): Promise<void> {
-  const supabase = await createClient()
+  const supabase = createAdminClient()
 
   const { error } = await supabase
     .from('messages')
@@ -97,7 +98,7 @@ export async function failAssistantMessage(messageId: string): Promise<void> {
 }
 
 export async function listMessages(chatSessionId: string): Promise<Message[]> {
-  const supabase = await createClient()
+  const supabase = createAdminClient()
 
   const { data, error } = await supabase
     .from('messages')

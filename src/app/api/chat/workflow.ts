@@ -9,6 +9,18 @@ import { getDriveClient } from '@/lib/google'
 import { runAgent, createDriveTools } from '@/lib/ai'
 import type { Message, MessagePart, AssistantMessage } from '@/lib/types'
 
+interface AgentStepResult {
+  id: string
+  parts: MessagePart[]
+  error?: undefined
+}
+
+interface AgentStepError {
+  error: string
+  id?: undefined
+  parts?: undefined
+}
+
 export async function chatWorkflow(
   chatSessionId: string,
   userId: string,
@@ -19,14 +31,13 @@ export async function chatWorkflow(
   const { history, assistantMessageId } = await loadHistory(chatSessionId)
   const tools = await buildTools(userId, workspaceId)
 
-  let result
-  try {
-    result = await runAgentStep(history, tools)
-  } catch (error) {
+  const result = await runAgentStep(history, tools)
+
+  if ('error' in result) {
     if (assistantMessageId) {
       await failAssistant(assistantMessageId)
     }
-    throw error
+    return { messageId: '' }
   }
 
   if (assistantMessageId) {
@@ -71,7 +82,7 @@ async function buildTools(userId: string, workspaceId: string) {
 async function runAgentStep(
   history: Array<{ role: 'user' | 'assistant'; content: string }>,
   tools: Record<string, unknown>,
-) {
+): Promise<AgentStepResult | AgentStepError> {
   'use step'
   const writable = getWritable()
   const writer = writable.getWriter()
@@ -80,13 +91,15 @@ async function runAgentStep(
     const result = await runAgent({
       messages: history,
       tools,
-      onChunk: (chunk) => {
-        writer.write(chunk)
-      },
+      writer,
     })
+    await writer.close()
     return result
-  } finally {
-    writer.releaseLock()
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error)
+    writer.write({ type: 'error', message })
+    await writer.close()
+    return { error: message }
   }
 }
 

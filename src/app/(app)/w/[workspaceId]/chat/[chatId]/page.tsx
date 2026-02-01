@@ -10,12 +10,17 @@ export default function ChatPage({
   params: Promise<{ chatId: string }>
 }) {
   const { chatId } = use(params)
-  const { messages, sendMessage, isStreaming } = useChatStream(chatId)
+  const { messages, sendMessage, isStreaming, error } = useChatStream(chatId)
 
   return (
     <>
       <ChatHeader title={null} />
       <MessageList messages={messages} isStreaming={isStreaming} className="flex-1" />
+      {error && (
+        <div className="mx-4 mb-2 rounded-lg bg-destructive/10 px-4 py-2 text-sm text-destructive">
+          {error.message}
+        </div>
+      )}
       <ChatInput onSend={sendMessage} isStreaming={isStreaming} />
     </>
   )
