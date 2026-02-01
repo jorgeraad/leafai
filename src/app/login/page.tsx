@@ -2,6 +2,7 @@ import { Logo } from "@/components/logo";
 import { GoogleIcon } from "@/components/google-icon";
 import { Button } from "@/components/button";
 import { FadeIn } from "@/components/fade-in";
+import { signInWithGoogle } from "@/app/auth/actions";
 
 export default function LoginPage() {
   return (
@@ -18,13 +19,15 @@ export default function LoginPage() {
 
         <FadeIn delay={120}>
           <div className="rounded-2xl border border-neutral-200 bg-white p-8 shadow-sm">
-            <button
-              type="button"
-              className="flex w-full items-center justify-center gap-3 rounded-full border border-neutral-200 bg-white px-4 py-3.5 text-sm font-medium text-neutral-700 transition-colors hover:bg-neutral-50"
-            >
-              <GoogleIcon />
-              Continue with Google
-            </button>
+            <form action={signInWithGoogle}>
+              <button
+                type="submit"
+                className="flex w-full items-center justify-center gap-3 rounded-full border border-neutral-200 bg-white px-4 py-3.5 text-sm font-medium text-neutral-700 transition-colors hover:bg-neutral-50"
+              >
+                <GoogleIcon />
+                Continue with Google
+              </button>
+            </form>
 
             <p className="mt-5 text-center text-xs leading-relaxed text-neutral-400">
               By continuing, you agree to our terms of service and privacy
