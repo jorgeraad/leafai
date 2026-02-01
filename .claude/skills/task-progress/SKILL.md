@@ -1,5 +1,5 @@
 ---
-name: get-task-progress
+name: task-progress
 description: Show the current progress of a specific task or all tasks in the task management system
 disable-model-invocation: true
 argument-hint: "<task-id, task name, or 'all'>"

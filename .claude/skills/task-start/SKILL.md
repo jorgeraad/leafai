@@ -1,5 +1,5 @@
 ---
-name: start-task-implementation
+name: task-start
 description: Begin a task implementation session by reviewing the task management system, summarizing current status, and picking tasks to implement
 disable-model-invocation: true
 argument-hint: ""

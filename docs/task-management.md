@@ -339,7 +339,7 @@ Format per entry:
 
 ### 1. Starting a session
 
-> **Shortcut:** Use `/start-task-implementation` to automate steps 1–3 (assess state, pick tasks, start them).
+> **Shortcut:** Use `/task-start` to automate steps 1–3 (assess state, pick tasks, start them).
 
 1. Read `docs/tasks/current-progress.md`.
 2. If you've been given a specific task, find it. If you're picking up work, choose from the **Ready** section.
@@ -390,7 +390,7 @@ Format per entry:
 
 ### 5. Completing a task
 
-> **Shortcut:** Use `/complete-task <task-id>` to automate this entire procedure, including acceptance criteria review and downstream unblocking.
+> **Shortcut:** Use `/task-complete <task-id>` to automate this entire procedure, including acceptance criteria review and downstream unblocking.
 
 1. Move the file:
    ```bash
@@ -456,10 +456,10 @@ The following slash commands automate common task management workflows. Use them
 
 | Command | Description |
 |---------|-------------|
-| `/start-task-implementation` | Assess current state, show ready tasks, pick tasks to start, and begin implementation. Handles dependency checks, Touches overlap, file moves, and `current-progress.md` updates. |
-| `/complete-task <task-id>` | Complete an in-progress task. Reviews acceptance criteria with you, moves the file to `completed/`, updates metadata, and unblocks downstream tasks. |
-| `/get-task-progress <task-id or "all">` | Report on progress for a specific task or all tasks. Shows criteria/step completion, blocker status, and flags potential issues. |
-| `/verify-tasks` | Audit the entire task system for inconsistencies. Checks that task file metadata matches directory location, `current-progress.md` is accurate, dependencies are correctly resolved, and flags issues for user review before applying fixes. |
+| `/task-start` | Assess current state, show ready tasks, pick tasks to start, and begin implementation. Handles dependency checks, Touches overlap, file moves, and `current-progress.md` updates. |
+| `/task-complete <task-id>` | Complete an in-progress task. Reviews acceptance criteria with you, moves the file to `completed/`, updates metadata, and unblocks downstream tasks. |
+| `/task-progress <task-id or "all">` | Report on progress for a specific task or all tasks. Shows criteria/step completion, blocker status, and flags potential issues. |
+| `/task-verify` | Audit the entire task system for inconsistencies. Checks that task file metadata matches directory location, `current-progress.md` is accurate, dependencies are correctly resolved, and flags issues for user review before applying fixes. |
 
 These commands follow the same procedures documented in the [Agent Workflow](#agent-workflow--step-by-step) sections above. When a slash command is available for what you're doing, prefer it over manual steps.
 

@@ -1,5 +1,5 @@
 ---
-name: verify-tasks
+name: task-verify
 description: Audit the task management system for inconsistencies, update current-progress.md, and flag issues for resolution
 disable-model-invocation: true
 ---

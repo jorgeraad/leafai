@@ -1,5 +1,5 @@
 ---
-name: complete-task
+name: task-complete
 description: Complete a task by moving it to completed, updating all metadata, checking off criteria, and unblocking downstream tasks
 disable-model-invocation: true
 argument-hint: "<task-id or task name>"
