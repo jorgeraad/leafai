@@ -1,12 +1,13 @@
 "use client"
 
 import { useState } from "react"
-import { PanelLeftClose, PanelLeft, Plus } from "lucide-react"
+import { PanelLeftClose, PanelLeft, Plus, Settings } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Skeleton } from "@/components/ui/skeleton"
 import { SessionList } from "./session-list"
 import { cn } from "@/lib/utils"
+import Link from "next/link"
 import type { ChatSession } from "@/lib/types"
 
 interface SidebarProps {
@@ -76,6 +77,20 @@ export function Sidebar({
           )}
         </ScrollArea>
       )}
+
+      <div className="mt-auto border-t p-2">
+        <Link href={`/w/${workspaceId}/settings/integrations`}>
+          <Button
+            variant="ghost"
+            size={collapsed ? "icon-sm" : "sm"}
+            className={cn(!collapsed && "w-full justify-start gap-2")}
+            aria-label="Settings"
+          >
+            <Settings className="size-4" />
+            {!collapsed && "Settings"}
+          </Button>
+        </Link>
+      </div>
     </aside>
   )
 }
