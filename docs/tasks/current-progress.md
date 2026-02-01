@@ -6,14 +6,16 @@ All 14 tasks from the design doc are now complete. The app shell and assembled p
 
 ## Ready
 
-- **20260201173502 - Fix All Failing Tests** — Diagnose and fix vitest config issues and all test failures so the full suite passes | Touches: `vitest.config.ts, src/**/*.test.ts, src/**/*.test.tsx, tsconfig.json` | Blocked-By: none
+(none)
 
 ## In Progress
 
 - **20260201174004 - Fix Chat Messaging** — Fix message persistence, enable LLM streaming end-to-end, maintain input focus after sending | Touches: src/app/api/chat/route.ts, src/app/api/chat/workflow.ts, src/hooks/use-chat-stream.ts, src/components/chat/chat-input.tsx, src/lib/ai/agent.ts, src/lib/db/messages.ts, supabase/migrations/ | Agent: brave-hawk
 
+
 ## Recently Completed
 
+- **20260201180135 - Auto-Generate Chat Session Title** — Completed 2026-02-01
 - **20260201174250 - Settings Page & Sidebar Navigation** — Completed 2026-02-01
 - **20260201142900 - App Shell + Assembled Pages** — Completed 2026-02-01
 - **20260201171633 - Fix Workspace Creation Blocked by RLS** — Completed 2026-02-01
