@@ -2,11 +2,11 @@
 
 ## Overview
 
-14 total tasks created from the design doc. 13 are complete. The final assembly task (App Shell + Assembled Pages) is unblocked and ready to start.
+All 14 tasks from the design doc are now complete. The app shell and assembled pages (final task) have been implemented — the app is fully wired end-to-end.
 
 ## Ready
 
-- **20260201142900 - App Shell + Assembled Pages** — Authenticated layout, workspace pages, chat page assembly | Touches: `src/app/(app)/w/[workspaceId]/` | Blocked-By: 20260201142850, 20260201142855, 20260201142856, 20260201142857, 20260201142859 (all completed)
+(none)
 
 ## In Progress
 
@@ -14,6 +14,7 @@
 
 ## Recently Completed
 
+- **20260201142900 - App Shell + Assembled Pages** — Completed 2026-02-01
 - **20260201171633 - Fix Workspace Creation Blocked by RLS** — Completed 2026-02-01
 - **20260201142859 - Chat API + Workflow + Reconnection** — Completed 2026-02-01
 - **20260201142858 - Integration Settings** — Completed 2026-02-01
@@ -30,4 +31,4 @@
 
 ## Up Next
 
-(none — all tasks either completed or ready)
+(none — all tasks completed)
