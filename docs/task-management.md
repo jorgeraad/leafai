@@ -459,6 +459,7 @@ The following slash commands automate common task management workflows. Use them
 | `/start-task-implementation` | Assess current state, show ready tasks, pick tasks to start, and begin implementation. Handles dependency checks, Touches overlap, file moves, and `current-progress.md` updates. |
 | `/complete-task <task-id>` | Complete an in-progress task. Reviews acceptance criteria with you, moves the file to `completed/`, updates metadata, and unblocks downstream tasks. |
 | `/get-task-progress <task-id or "all">` | Report on progress for a specific task or all tasks. Shows criteria/step completion, blocker status, and flags potential issues. |
+| `/verify-tasks` | Audit the entire task system for inconsistencies. Checks that task file metadata matches directory location, `current-progress.md` is accurate, dependencies are correctly resolved, and flags issues for user review before applying fixes. |
 
 These commands follow the same procedures documented in the [Agent Workflow](#agent-workflow--step-by-step) sections above. When a slash command is available for what you're doing, prefer it over manual steps.
 
@@ -476,3 +477,4 @@ These commands follow the same procedures documented in the [Agent Workflow](#ag
 8. **Check Touches before starting.** Always scan `in-progress/` tasks for overlapping file ownership and note any overlaps.
 9. **Update Touches if scope changes.** If you modify files outside your declared scope, update the field immediately.
 10. **Keep tasks narrow.** Tasks should be small and self-contained so many can run in parallel. If a task is growing too large, split it.
+11. **Keep this document in sync.** When creating or modifying a skill related to task management (anything in `.claude/skills/` that deals with tasks), update this document to reflect the change. This includes adding/updating entries in the [Slash Commands](#slash-commands) table and revising any procedures or rules that the new skill affects. This file is the source of truth for how the task system works — it must stay accurate.
