@@ -38,7 +38,28 @@ Present a clear summary including:
 
 Ask the user which of the **Ready to Implement** tasks they want to pick up. Present the ready tasks as options. Wait for the user's response.
 
-## Step 5: Start the selected tasks
+## Step 5: Gather dependency context
+
+For each selected task, build a full picture of what was already built by traversing the dependency tree. Follow the "Gathering Dependency Context" procedure from `docs/task-management.md`:
+
+1. **Traverse the ancestor chain**: Read the task's `Blocked-By` field. For each listed task ID, read the completed task file. Then read *that* task's `Blocked-By` and repeat, until you reach tasks with `Blocked-By: none`.
+2. **Extract context from each ancestor**: Note its Description, Acceptance Criteria (delivered vs. descoped), Touches (files created/modified), and final progress log entry.
+3. **Identify sibling tasks**: Find tasks (in any directory) that share at least one direct `Blocked-By` entry with the current task. Read those files and extract the same context.
+4. **Present the context summary** structured as:
+
+```
+## Dependency Context for <TASK_ID>
+
+### Ancestor Chain (root → current)
+- **<ID> - <Title>** (completed): <summary>. Touches: `<paths>`.
+
+### Sibling Tasks
+- **<ID> - <Title>** (<status>): <summary>. Touches: `<paths>`.
+```
+
+Delegate this traversal to a sub-agent to keep the orchestrator's context clean.
+
+## Step 6: Start the selected tasks
 
 For each task the user selects, follow the "Beginning work on a task" procedure from `docs/task-management.md`:
 
@@ -49,9 +70,9 @@ For each task the user selects, follow the "Beginning work on a task" procedure 
 5. **Update the task file**:
    - Set **Status** to `in-progress`
    - Set **Last Modified** to the fresh timestamp
-   - Add a progress log entry: "Starting implementation."
+   - Add a progress log entry: "Starting implementation." Include a brief reference to the dependency context gathered in Step 5 (e.g., key files/types that ancestors created).
 6. **Update `docs/tasks/current-progress.md`**:
    - Remove the task from **Ready**
    - Add it to **In Progress**
 
-After all selected tasks are started, confirm what was done and begin implementation.
+After all selected tasks are started, confirm what was done and begin implementation. The dependency context summary from Step 5 should inform your implementation approach.

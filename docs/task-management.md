@@ -14,11 +14,29 @@ Read this entire document before starting any work.
 4. [Field Reference](#field-reference)
 5. [Timestamps](#timestamps)
 6. [Dependencies (Blocked-By)](#dependencies-blocked-by)
-7. [File Ownership (Touches)](#file-ownership-touches)
-8. [current-progress.md](#current-progressmd)
-9. [Agent Workflow — Step by Step](#agent-workflow--step-by-step)
-10. [Quick-Reference Checklist](#quick-reference-checklist)
-11. [Rules](#rules)
+7. [Gathering Dependency Context](#gathering-dependency-context)
+8. [File Ownership (Touches)](#file-ownership-touches)
+9. [current-progress.md](#current-progressmd)
+10. [Agent Workflow — Step by Step](#agent-workflow--step-by-step)
+11. [Quick-Reference Checklist](#quick-reference-checklist)
+12. [Slash Commands](#slash-commands)
+13. [Rules](#rules)
+
+---
+
+## Agent Identity
+
+At the start of every session, generate a unique name by running:
+
+```bash
+bash scripts/agent-name.sh
+```
+
+This outputs a two-word name like `swift-falcon` or `calm-otter`. **Use this name for your entire session.** It identifies you in task files and `current-progress.md` so other agents can tell who is working on what.
+
+- Set the `Agent` field in any task you move to `in-progress` or `completed`.
+- Use your name in `current-progress.md` entries.
+- If you see an in-progress task with a *different* agent name, another agent is working on it — do not take it over without coordination.
 
 ---
 
@@ -69,6 +87,7 @@ Every task file must use this exact structure. The `<TASK_ID>` is the full times
 | **Created**        | YYYY-MM-DD HH:MM:SS TZ |
 | **Last Modified**  | YYYY-MM-DD HH:MM:SS TZ |
 | **Status**         | todo / in-progress / completed |
+| **Agent**          | — |
 | **Blocked-By**     | none |
 | **Touches**        | src/lib/drive/, src/app/api/drive/ |
 | **References**     | [Design Doc](../../design-claude.md) |
@@ -109,6 +128,9 @@ Must match the directory the file is in:
 - `todo` → file is in `todo/`
 - `in-progress` → file is in `in-progress/`
 - `completed` → file is in `completed/`
+
+### Agent
+The name of the agent currently working on (or that completed) this task. Set to `—` for tasks in `todo/`. When moving a task to `in-progress`, set this to your agent name (from `scripts/agent-name.sh`). Preserve the value when moving to `completed/`.
 
 ### Blocked-By
 A comma-separated list of task IDs (timestamp prefixes) that must be completed before this task can start. Use `none` if the task has no dependencies.
@@ -215,6 +237,43 @@ After moving a task to `completed/`, check if any tasks in `todo/` were blocked 
 
 ---
 
+## Gathering Dependency Context
+
+Before starting implementation on a task, **traverse its full dependency tree** to understand what was already built, what decisions were made, and what files exist. This is critical for producing correct, well-integrated code.
+
+### Procedure
+
+1. **Read the task's `Blocked-By` field.** For each listed task ID, find and read the completed task file.
+2. **Recurse.** For each of those tasks, read *their* `Blocked-By` fields and repeat until you reach tasks with `Blocked-By: none`. This builds the full ancestor chain from root to current task.
+3. **Extract context from each ancestor.** From each completed task file, note:
+   - **Description** — what it accomplished
+   - **Acceptance Criteria** — what was delivered (and what was descoped)
+   - **Touches** — what files/directories were created or modified
+   - **Final progress log entry** — summary of outcome and key decisions
+4. **Identify sibling tasks.** Siblings are tasks that share at least one *direct* dependency with the current task (i.e., their `Blocked-By` lists overlap with yours). Find these by scanning all task files (in any directory) and checking for shared `Blocked-By` entries. Read sibling task files and extract the same context fields. Note each sibling's status — a completed sibling tells you what's already built in an adjacent area; an in-progress sibling tells you what's actively being changed.
+5. **Produce a structured context summary.** Organize the information for easy reference:
+
+```markdown
+## Dependency Context for <TASK_ID>
+
+### Ancestor Chain (root → current)
+- **<ID> - <Title>** (completed): <1-line summary>. Touches: `<paths>`.
+- **<ID> - <Title>** (completed): <1-line summary>. Touches: `<paths>`.
+
+### Sibling Tasks
+- **<ID> - <Title>** (<status>): <1-line summary>. Touches: `<paths>`.
+```
+
+### When to delegate
+
+This traversal involves reading multiple files. Delegate it to a **sub-agent** so the main agent doesn't spend context on file reads. Pass the sub-agent the task ID and instruct it to follow this procedure and return the structured summary.
+
+### Depth limits
+
+Most dependency trees are shallow (2–3 levels). If a chain exceeds 5 levels, truncate to the 5 most recent ancestors and note that earlier history was omitted.
+
+---
+
 ## File Ownership (Touches)
 
 The `Touches` field prevents agents from unknowingly making conflicting changes to the same files.
@@ -280,6 +339,8 @@ Format per entry:
 
 ### 1. Starting a session
 
+> **Shortcut:** Use `/start-task-implementation` to automate steps 1–3 (assess state, pick tasks, start them).
+
 1. Read `docs/tasks/current-progress.md`.
 2. If you've been given a specific task, find it. If you're picking up work, choose from the **Ready** section.
 
@@ -297,17 +358,19 @@ Format per entry:
 ### 3. Beginning work on a task
 
 1. **Check dependencies:** Verify all `Blocked-By` tasks are in `completed/`. If not, do not start.
-2. **Check for file overlaps:** Read `Touches` of all tasks in `in-progress/`. If overlap exists, read those tasks' progress logs and note the overlap in yours.
-3. Move the file:
+2. **Gather dependency context** (see [Gathering Dependency Context](#gathering-dependency-context) below). This gives you full knowledge of what was already built.
+3. **Check for file overlaps:** Read `Touches` of all tasks in `in-progress/`. If overlap exists, read those tasks' progress logs and note the overlap in yours.
+4. Move the file:
    ```bash
    mv docs/tasks/todo/<TASK_ID>-name.md docs/tasks/in-progress/<TASK_ID>-name.md
    ```
-4. Run `date '+%Y-%m-%d %H:%M:%S %Z'` for the timestamp.
-5. Update the task file:
+5. Run `date '+%Y-%m-%d %H:%M:%S %Z'` for the timestamp.
+6. Update the task file:
    - Set **Status** to `in-progress`.
+   - Set **Agent** to your agent name (from `scripts/agent-name.sh`).
    - Set **Last Modified** to current timestamp.
    - Add a progress log entry: "Starting work. <context about approach, any overlaps noted>."
-6. Update `current-progress.md`:
+7. Update `current-progress.md`:
    - Remove the task from **Ready**.
    - Add it to **In Progress** with the `Touches` summary.
 
@@ -326,6 +389,8 @@ Format per entry:
 - At minimum, at least one entry per major step of the task.
 
 ### 5. Completing a task
+
+> **Shortcut:** Use `/complete-task <task-id>` to automate this entire procedure, including acceptance criteria review and downstream unblocking.
 
 1. Move the file:
    ```bash
@@ -359,10 +424,11 @@ Use this as a reminder during work. Each box must be done at the indicated time.
 
 **When starting a task:**
 - [ ] Verified all `Blocked-By` tasks are in `completed/`
+- [ ] Gathered dependency context (traversed ancestor chain + identified siblings)
 - [ ] Checked `Touches` overlap with all `in-progress/` tasks
 - [ ] Noted any overlaps in progress log
 - [ ] Moved file to `in-progress/`
-- [ ] Updated Status + Last Modified
+- [ ] Updated Status + Agent + Last Modified
 - [ ] Broke down work into Implementation Steps checklist
 - [ ] Added progress log entry
 - [ ] Updated `current-progress.md` (Ready → In Progress)
@@ -381,6 +447,20 @@ Use this as a reminder during work. Each box must be done at the indicated time.
 - [ ] Checked off all acceptance criteria
 - [ ] Updated `current-progress.md` (In Progress → Recently Completed)
 - [ ] Checked for newly unblocked tasks (Up Next → Ready)
+
+---
+
+## Slash Commands
+
+The following slash commands automate common task management workflows. Use them instead of performing the steps manually.
+
+| Command | Description |
+|---------|-------------|
+| `/start-task-implementation` | Assess current state, show ready tasks, pick tasks to start, and begin implementation. Handles dependency checks, Touches overlap, file moves, and `current-progress.md` updates. |
+| `/complete-task <task-id>` | Complete an in-progress task. Reviews acceptance criteria with you, moves the file to `completed/`, updates metadata, and unblocks downstream tasks. |
+| `/get-task-progress <task-id or "all">` | Report on progress for a specific task or all tasks. Shows criteria/step completion, blocker status, and flags potential issues. |
+
+These commands follow the same procedures documented in the [Agent Workflow](#agent-workflow--step-by-step) sections above. When a slash command is available for what you're doing, prefer it over manual steps.
 
 ---
 

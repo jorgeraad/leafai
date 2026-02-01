@@ -49,6 +49,36 @@ scripts/
 - Run scripts: `bun run <script>`
 - Add packages: `bun add <package>` (or `bun add -d <package>` for dev dependencies)
 
+## Supabase CLI
+
+**Always use the Supabase CLI** for all database operations. Do not manually create migration files, hand-edit `config.toml` schemas, or bypass the CLI. Examples:
+
+- Create migrations: `supabase migration new <name>` (generates the timestamped file for you)
+- Apply migrations locally: `supabase db reset`
+- Diff schema changes: `supabase db diff`
+- Generate types: `supabase gen types typescript --local`
+
+**CLI resolution order:** Try running `supabase` directly first (the globally installed CLI). If that fails (not installed), fall back to `bunx supabase`. Never install it as a project dependency.
+
+```bash
+# Preferred
+supabase migration new create_users
+
+# Fallback only if `supabase` is not on PATH
+bunx supabase migration new create_users
+```
+
+### NEVER target production
+
+**This is non-negotiable.** Never run any Supabase CLI command that targets a remote/production project. This includes but is not limited to:
+
+- `supabase db push` — **NEVER run this**
+- `supabase db reset` with `--linked` — **NEVER**
+- Any command with `--project-ref` or `--linked` flags — **NEVER**
+- `supabase link` — **Do not link to production**
+
+All Supabase CLI commands must target the **local** development instance only. If a command's help text mentions it affects the remote database, do not run it.
+
 ## Sub-Agent Usage & Parallelization
 
 If you have access to sub-agents (e.g., the Task tool), **use them aggressively** to divide work and run tasks in parallel. Do not do sequentially what can be done concurrently.
@@ -133,6 +163,16 @@ bun run build        # Production build
 bun run lint         # Run ESLint
 bun test             # Run tests
 ```
+
+## Agent Identity
+
+At the start of every session, generate a unique name for yourself by running:
+
+```bash
+bash scripts/agent-name.sh
+```
+
+This outputs a two-word name like `swift-falcon` or `calm-otter`. **Remember this name for the entire session** and use it whenever you claim or update a task. This lets other agents (and humans) distinguish which agent is working on what.
 
 ## Task Management
 
