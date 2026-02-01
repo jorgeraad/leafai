@@ -119,6 +119,11 @@ Phase 3 (serial):
 - Server Components are the default; only use `'use client'` when the component needs browser APIs or interactivity.
 - Keep API routes thin — business logic belongs in dedicated modules under `src/lib/`.
 
+## Commits
+
+- **Split commits logically.** Each commit should represent a single coherent change (e.g., one commit for a migration, another for the DAL functions that use it). Don't bundle unrelated changes into one commit.
+- **Do not add a `Co-Authored-By` line** or any other trailer crediting the agent as a collaborator. Commits should look like they came from the human developer.
+
 ## Common Commands
 
 ```bash
