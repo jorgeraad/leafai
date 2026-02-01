@@ -20,6 +20,9 @@ const playfair = Playfair_Display({
 export const metadata: Metadata = {
   title: "Leaf AI",
   description: "Ask your documents anything.",
+  icons: {
+    icon: "/leaf-icon.svg",
+  },
 };
 
 export default function RootLayout({

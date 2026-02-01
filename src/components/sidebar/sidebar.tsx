@@ -2,6 +2,7 @@
 
 import { useState } from "react"
 import { PanelLeftClose, PanelLeft, Plus, Settings } from "lucide-react"
+import { LeafLogo } from "@/components/icons/leaf-logo"
 import { Button } from "@/components/ui/button"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Skeleton } from "@/components/ui/skeleton"
@@ -30,34 +31,51 @@ export function Sidebar({
   return (
     <aside
       className={cn(
-        "flex h-full flex-col border-r bg-background transition-[width] duration-200",
+        "flex h-full flex-col border-r bg-background transition-[width] duration-200 animate-fade-in",
         collapsed ? "w-12" : "w-64"
       )}
     >
       <div className="flex items-center justify-between gap-2 border-b p-2">
-        {!collapsed && (
-          <Button
-            variant="ghost"
-            size="sm"
-            className="flex-1 justify-start gap-2"
-            onClick={onNewChat}
-          >
-            <Plus className="size-4" />
-            New Chat
-          </Button>
-        )}
         <Button
           variant="ghost"
-          size="icon-sm"
-          onClick={() => setCollapsed((c) => !c)}
-          aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
+          size={collapsed ? "icon-sm" : "sm"}
+          className={cn(!collapsed && "justify-start gap-2")}
+          onClick={onNewChat}
+          aria-label="New chat"
         >
-          {collapsed ? (
-            <PanelLeft className="size-4" />
-          ) : (
-            <PanelLeftClose className="size-4" />
-          )}
+          <LeafLogo className="size-4 text-green-600" />
+          {!collapsed && <span className="font-semibold">Leaf</span>}
         </Button>
+        {!collapsed && (
+          <>
+            <Button
+              variant="ghost"
+              size="icon-sm"
+              onClick={onNewChat}
+              aria-label="New chat"
+            >
+              <Plus className="size-4" />
+            </Button>
+            <Button
+              variant="ghost"
+              size="icon-sm"
+              onClick={() => setCollapsed((c) => !c)}
+              aria-label="Collapse sidebar"
+            >
+              <PanelLeftClose className="size-4" />
+            </Button>
+          </>
+        )}
+        {collapsed && (
+          <Button
+            variant="ghost"
+            size="icon-sm"
+            onClick={() => setCollapsed((c) => !c)}
+            aria-label="Expand sidebar"
+          >
+            <PanelLeft className="size-4" />
+          </Button>
+        )}
       </div>
 
       {!collapsed && (
