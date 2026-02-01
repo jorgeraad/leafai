@@ -2,17 +2,16 @@
 
 import { useActionState } from "react";
 import { Logo } from "@/components/logo";
-import { GoogleIcon } from "@/components/google-icon";
 import { FadeIn } from "@/components/fade-in";
-import { signInWithGoogle, signInWithEmail } from "@/app/auth/actions";
+import { signUpWithEmail } from "@/app/auth/actions";
 import Link from "next/link";
 import type { AuthFormState } from "@/lib/types";
 
 const initialState: AuthFormState = { error: null, success: null };
 
-export default function LoginPage() {
+export default function SignupPage() {
   const [state, formAction, pending] = useActionState(
-    signInWithEmail,
+    signUpWithEmail,
     initialState
   );
 
@@ -23,7 +22,7 @@ export default function LoginPage() {
           <div className="mb-12 text-center">
             <Logo size="lg" />
             <p className="mt-3 text-sm text-neutral-500">
-              Sign in to start asking your documents anything.
+              Create an account to get started.
             </p>
           </div>
         </FadeIn>
@@ -67,7 +66,25 @@ export default function LoginPage() {
                   name="password"
                   type="password"
                   required
-                  autoComplete="current-password"
+                  autoComplete="new-password"
+                  className="w-full rounded-lg border border-neutral-200 px-3 py-2.5 text-sm outline-none transition-colors focus:border-neutral-400"
+                  placeholder="••••••••"
+                />
+              </div>
+
+              <div>
+                <label
+                  htmlFor="confirmPassword"
+                  className="mb-1 block text-sm font-medium text-neutral-700"
+                >
+                  Confirm password
+                </label>
+                <input
+                  id="confirmPassword"
+                  name="confirmPassword"
+                  type="password"
+                  required
+                  autoComplete="new-password"
                   className="w-full rounded-lg border border-neutral-200 px-3 py-2.5 text-sm outline-none transition-colors focus:border-neutral-400"
                   placeholder="••••••••"
                 />
@@ -78,33 +95,17 @@ export default function LoginPage() {
                 disabled={pending}
                 className="w-full rounded-full bg-neutral-900 px-4 py-3 text-sm font-medium text-white transition-colors hover:bg-neutral-800 disabled:opacity-50"
               >
-                {pending ? "Signing in…" : "Sign in"}
-              </button>
-            </form>
-
-            <div className="my-5 flex items-center gap-3">
-              <div className="h-px flex-1 bg-neutral-200" />
-              <span className="text-xs text-neutral-400">or</span>
-              <div className="h-px flex-1 bg-neutral-200" />
-            </div>
-
-            <form action={signInWithGoogle}>
-              <button
-                type="submit"
-                className="flex w-full items-center justify-center gap-3 rounded-full border border-neutral-200 bg-white px-4 py-3 text-sm font-medium text-neutral-700 transition-colors hover:bg-neutral-50"
-              >
-                <GoogleIcon />
-                Continue with Google
+                {pending ? "Creating account…" : "Create account"}
               </button>
             </form>
 
             <p className="mt-5 text-center text-xs text-neutral-400">
-              Don&apos;t have an account?{" "}
+              Already have an account?{" "}
               <Link
-                href="/signup"
+                href="/login"
                 className="text-neutral-600 underline hover:text-neutral-900"
               >
-                Sign up
+                Sign in
               </Link>
             </p>
           </div>
