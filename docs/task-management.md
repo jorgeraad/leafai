@@ -82,6 +82,12 @@ Brief description of what this task accomplishes and why.
 - [ ] Criterion 1
 - [ ] Criterion 2
 
+## Implementation Steps
+
+- [ ] Step 1
+- [ ] Step 2
+- [ ] Step 3
+
 ## Progress Log
 
 ### YYYY-MM-DD HH:MM:SS TZ
@@ -134,6 +140,28 @@ Examples:
 
 ### References
 Links to design docs, specs, or other documents that informed this task. Every task must reference at least one document. Use relative paths from the task file's location.
+
+---
+
+## Breaking Down Tasks
+
+Tasks should be broken down into concrete implementation steps. This is tracked via the **Implementation Steps** checklist in the task file — separate from the Progress Log.
+
+### Implementation Steps vs. Progress Log
+
+- **Implementation Steps** is a checkbox to-do list of discrete work items (e.g., "Create migration file", "Add API route", "Write tests"). Check items off as they are completed. This gives a clear picture of what remains.
+- **Progress Log** is an append-only journal of timestamped notes — decisions made, problems encountered, context for future readers. Keep entries brief.
+
+### When to add steps
+
+- **When starting a task**: Decompose the work into steps before writing code. This is the plan.
+- **During work**: If new steps emerge, add them to the list.
+
+### When to create a new task instead
+
+If you discover a significant chunk of missing work that is separable from the current task (different files, different concern, could be done independently), **create a new task file** in `todo/` rather than growing the current task. Set its `Blocked-By` if it depends on the current task, or leave it unblocked if it can be done in parallel. Update `current-progress.md` accordingly.
+
+The goal is to keep each task narrow and focused so multiple agents can work in parallel.
 
 ---
 
@@ -335,6 +363,7 @@ Use this as a reminder during work. Each box must be done at the indicated time.
 - [ ] Noted any overlaps in progress log
 - [ ] Moved file to `in-progress/`
 - [ ] Updated Status + Last Modified
+- [ ] Broke down work into Implementation Steps checklist
 - [ ] Added progress log entry
 - [ ] Updated `current-progress.md` (Ready → In Progress)
 

@@ -146,6 +146,7 @@ Key points (the full doc has detailed workflows, checklists, and rules):
 - **Touches** — each task declares which files/directories it will modify. Before starting, check for overlaps with in-progress tasks and coordinate if needed.
 - **Timestamps** — always use `date '+%Y-%m-%d %H:%M:%S %Z'`. Never guess.
 - **Keep tasks narrow** so many can run in parallel.
+- **Break tasks down** — when starting a task, decompose it into a checklist of smaller implementation steps in the task file. This makes progress visible and enables parallel sub-agents to each pick up a step. If you discover significant missing work mid-task, create a new task file in `todo/` rather than letting the current task balloon in scope.
 
 ### Delegate task bookkeeping to a sub-agent
 
