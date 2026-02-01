@@ -27,7 +27,7 @@ export default async function SettingsLayout({
         <aside className="w-48 border-r p-4">
           <SettingsNav workspaceId={workspaceId} />
         </aside>
-        <div className="flex-1 overflow-y-auto">{children}</div>
+        <div className="flex-1 overflow-y-auto animate-fade-in-up">{children}</div>
       </div>
     </div>
   )

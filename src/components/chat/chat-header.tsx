@@ -12,7 +12,7 @@ export function ChatHeader({ title, className }: ChatHeaderProps) {
     <div
       data-slot="chat-header"
       className={cn(
-        "border-b bg-background px-4 py-3 font-semibold",
+        "border-b bg-background px-4 py-3 font-semibold animate-fade-in",
         className
       )}
     >

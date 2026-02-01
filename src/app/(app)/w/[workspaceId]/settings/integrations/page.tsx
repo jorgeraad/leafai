@@ -22,7 +22,7 @@ export default async function IntegrationsSettingsPage({
   const email = integration?.providerAccountEmail ?? undefined
 
   return (
-    <div className="mx-auto max-w-2xl space-y-6 p-6">
+    <div className="mx-auto max-w-2xl space-y-6 p-6 animate-fade-in-up">
       <h1 className="text-2xl font-bold">Integrations</h1>
       <IntegrationSettingsClient
         workspaceId={workspaceId}

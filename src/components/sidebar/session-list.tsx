@@ -23,10 +23,14 @@ export function SessionList({
 
   return (
     <ul className="flex flex-col gap-0.5" role="list">
-      {sessions.map((session) => {
+      {sessions.map((session, index) => {
         const isActive = session.id === activeChatId
         return (
-          <li key={session.id}>
+          <li
+            key={session.id}
+            className="animate-fade-in-up"
+            style={{ animationDelay: `${index * 30}ms` }}
+          >
             <Link
               href={`/w/${workspaceId}/chat/${session.id}`}
               className={cn(
