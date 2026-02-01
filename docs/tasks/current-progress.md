@@ -6,7 +6,7 @@ All 14 tasks from the design doc are complete. The app is fully wired end-to-end
 
 ## Ready
 
-- **20260201184336 - App-Wide Fade-In Animations** — Add subtle, consistent fade-in animations across chat, sidebar, settings, and all UI surfaces using reusable CSS utilities and wrapper components | Touches: `src/components/fade-in.tsx, src/app/globals.css, src/components/chat/**, src/components/sidebar/**, src/components/ui/` | Blocked-By: none
+- **20260201185428 - Sidebar UX Improvements + Lazy Session Creation** — Sidebar hover-to-expand, header layout cleanup, new chat button styling, and lazy session creation (no DB row until first message sent).
 
 ## In Progress
 
@@ -15,6 +15,7 @@ All 14 tasks from the design doc are complete. The app is fully wired end-to-end
 
 ## Recently Completed
 
+- **20260201184336 - App-Wide Fade-In Animations** — Completed 2026-02-01
 - **20260201182012 - Migrate AI SDK to use OpenRouter** — Completed 2026-02-01
 - **20260201180135 - Auto-Generate Chat Session Title** — Completed 2026-02-01
 - **20260201174250 - Settings Page & Sidebar Navigation** — Completed 2026-02-01

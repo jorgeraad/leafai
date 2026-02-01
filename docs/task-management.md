@@ -456,6 +456,7 @@ The following slash commands automate common task management workflows. Use them
 
 | Command | Description |
 |---------|-------------|
+| `/task-create` | Create one or more new task files in `todo/`. Surveys existing tasks to avoid duplicates, determines dependencies and Touches, generates timestamps, writes task files, and updates `current-progress.md`. |
 | `/task-start` | Assess current state, show ready tasks, pick tasks to start, and begin implementation. Handles dependency checks, Touches overlap, file moves, and `current-progress.md` updates. |
 | `/task-complete <task-id>` | Complete an in-progress task. Reviews acceptance criteria with you, moves the file to `completed/`, updates metadata, and unblocks downstream tasks. |
 | `/task-progress <task-id or "all">` | Report on progress for a specific task or all tasks. Shows criteria/step completion, blocker status, and flags potential issues. |
