@@ -1,0 +1,81 @@
+"use client"
+
+import { useState } from "react"
+import { PanelLeftClose, PanelLeft, Plus } from "lucide-react"
+import { Button } from "@/components/ui/button"
+import { ScrollArea } from "@/components/ui/scroll-area"
+import { Skeleton } from "@/components/ui/skeleton"
+import { SessionList } from "./session-list"
+import { cn } from "@/lib/utils"
+import type { ChatSession } from "@/lib/types"
+
+interface SidebarProps {
+  sessions: ChatSession[]
+  activeChatId: string | null
+  workspaceId: string
+  isLoading: boolean
+  onNewChat: () => void
+}
+
+export function Sidebar({
+  sessions,
+  activeChatId,
+  workspaceId,
+  isLoading,
+  onNewChat,
+}: SidebarProps) {
+  const [collapsed, setCollapsed] = useState(false)
+
+  return (
+    <aside
+      className={cn(
+        "flex h-full flex-col border-r bg-background transition-[width] duration-200",
+        collapsed ? "w-12" : "w-64"
+      )}
+    >
+      <div className="flex items-center justify-between gap-2 border-b p-2">
+        {!collapsed && (
+          <Button
+            variant="ghost"
+            size="sm"
+            className="flex-1 justify-start gap-2"
+            onClick={onNewChat}
+          >
+            <Plus className="size-4" />
+            New Chat
+          </Button>
+        )}
+        <Button
+          variant="ghost"
+          size="icon-sm"
+          onClick={() => setCollapsed((c) => !c)}
+          aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
+        >
+          {collapsed ? (
+            <PanelLeft className="size-4" />
+          ) : (
+            <PanelLeftClose className="size-4" />
+          )}
+        </Button>
+      </div>
+
+      {!collapsed && (
+        <ScrollArea className="flex-1 px-2 py-2">
+          {isLoading ? (
+            <div className="flex flex-col gap-2 px-1">
+              <Skeleton className="h-8 w-full" />
+              <Skeleton className="h-8 w-full" />
+              <Skeleton className="h-8 w-full" />
+            </div>
+          ) : (
+            <SessionList
+              sessions={sessions}
+              activeChatId={activeChatId}
+              workspaceId={workspaceId}
+            />
+          )}
+        </ScrollArea>
+      )}
+    </aside>
+  )
+}
