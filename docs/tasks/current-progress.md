@@ -14,6 +14,7 @@ All 14 tasks from the design doc are complete. The app is fully wired end-to-end
 
 ## Recently Completed
 
+- **20260201203555 - Fix Google Drive OAuth — Add GOOGLE_* Env Vars and Validation** — Completed 2026-02-01
 - **20260201194623 - Fix Chat Title Not Updating in UI** — Completed 2026-02-01
 - **20260201174004 - Fix Chat Messaging** — Completed 2026-02-01
 - **20260201185428 - Sidebar UX Improvements + Lazy Session Creation** — Completed 2026-02-01
