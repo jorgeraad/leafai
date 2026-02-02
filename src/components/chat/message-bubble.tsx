@@ -1,6 +1,7 @@
 "use client"
 
 import Markdown from "react-markdown"
+import remarkGfm from "remark-gfm"
 import type { Message, MessagePart } from "@/lib/types"
 import { cn } from "@/lib/utils"
 import { ToolCallCard } from "./tool-call-card"
@@ -42,8 +43,8 @@ export function MessageBubble({ message, className }: MessageBubbleProps) {
         {message.parts.map((part, i) => {
           if (part.type === "text") {
             return (
-              <div key={i} className="prose prose-sm dark:prose-invert max-w-none">
-                <Markdown>{part.text}</Markdown>
+              <div key={i} className={cn("prose prose-sm max-w-none prose-p:my-2 prose-ul:my-2 prose-ol:my-2 prose-li:my-0.5 prose-headings:my-3 prose-pre:my-2 prose-p:leading-relaxed", isUser ? "prose-invert" : "dark:prose-invert")}>
+                <Markdown remarkPlugins={[remarkGfm]}>{part.text}</Markdown>
               </div>
             )
           }
