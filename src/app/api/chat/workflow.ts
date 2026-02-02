@@ -97,7 +97,7 @@ async function runAgentStep(
     return result
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error)
-    writer.write({ type: 'error', message })
+    await writer.write({ type: 'error', message })
     await writer.close()
     return { error: message }
   }

@@ -2,8 +2,7 @@
 
 import { useEffect, useRef, useState, type FormEvent } from "react"
 import { cn } from "@/lib/utils"
-import { Button } from "@/components/ui/button"
-import { SendHorizonal } from "lucide-react"
+import { ArrowUp } from "lucide-react"
 
 interface ChatInputProps {
   onSend: (content: string) => void
@@ -31,23 +30,34 @@ export function ChatInput({ onSend, isStreaming, className }: ChatInputProps) {
   }
 
   return (
-    <form
+    <div
       data-slot="chat-input"
-      onSubmit={handleSubmit}
-      className={cn("flex items-center gap-2 border-t bg-background p-4 animate-fade-in", className)}
+      className={cn(
+        "pointer-events-none relative animate-fade-in px-4 pb-4",
+        className
+      )}
     >
-      <input
-        ref={inputRef}
-        type="text"
-        value={value}
-        onChange={(e) => setValue(e.target.value)}
-        placeholder="Type a message…"
-        autoFocus
-        className="flex-1 rounded-md border bg-transparent px-3 py-2 text-sm outline-none placeholder:text-muted-foreground"
-      />
-      <Button type="submit" size="icon" disabled={isStreaming || !value.trim()}>
-        <SendHorizonal />
-      </Button>
-    </form>
+      <form
+        onSubmit={handleSubmit}
+        className="pointer-events-auto relative flex items-center gap-2 rounded-xl border bg-background px-4 py-2 shadow-sm"
+      >
+        <input
+          ref={inputRef}
+          type="text"
+          value={value}
+          onChange={(e) => setValue(e.target.value)}
+          placeholder="Type a message…"
+          autoFocus
+          className="flex-1 bg-transparent py-1 text-sm outline-none placeholder:text-muted-foreground"
+        />
+        <button
+          type="submit"
+          disabled={isStreaming || !value.trim()}
+          className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-primary text-primary-foreground transition-opacity disabled:opacity-30"
+        >
+          <ArrowUp className="h-4 w-4" />
+        </button>
+      </form>
+    </div>
   )
 }

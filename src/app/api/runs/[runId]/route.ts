@@ -16,14 +16,30 @@ export async function GET(
     // Transform them into SSE-formatted text for EventSource clients.
     const encoder = new TextEncoder()
     const workflowReader = readable.getReader()
+    let receivedError = false
     const sseStream = new ReadableStream({
       async pull(controller) {
         try {
           const { done, value } = await workflowReader.read()
           if (done) {
+            if (!receivedError) {
+              try {
+                const result = await run.returnValue as Record<string, unknown> | undefined
+                if (result && result.messageId === '') {
+                  const errLine = `data: ${JSON.stringify({ type: 'error', message: 'An error occurred while generating a response' })}\n\n`
+                  controller.enqueue(encoder.encode(errLine))
+                }
+              } catch {
+                const errLine = `data: ${JSON.stringify({ type: 'error', message: 'Workflow failed' })}\n\n`
+                controller.enqueue(encoder.encode(errLine))
+              }
+            }
             controller.enqueue(encoder.encode('event: done\ndata: {}\n\n'))
             controller.close()
             return
+          }
+          if (value && typeof value === 'object' && value.type === 'error') {
+            receivedError = true
           }
           const line = `data: ${JSON.stringify(value)}\n\n`
           controller.enqueue(encoder.encode(line))

@@ -2,19 +2,19 @@
 
 ## Overview
 
-All 14 tasks from the design doc are complete. The app is fully wired end-to-end. Chat messaging now works (streaming, persistence, input focus, reload). Remaining work: error propagation from workflow to client.
+All 14 tasks from the design doc are complete. The app is fully wired end-to-end. Chat messaging fully working including error handling.
 
 ## Ready
 
-(none)
+- **20260201194623 - Fix Chat Title Not Updating in UI** — Server generates titles but client never re-fetches; sidebar always shows "New Chat", header hardcoded to null | Touches: `src/hooks/use-chat-sessions.ts`, `src/app/(app)/w/[workspaceId]/chat/[chatId]/page.tsx`, `src/components/chat/chat-header.tsx` | Blocked-By: none
 
 ## In Progress
 
-- **20260201174004 - Fix Chat Messaging** — Core streaming, persistence, and input focus all working. Remaining: workflow errors don't propagate to client (stream hangs open on error). | Agent: grand-falcon
-
+(none)
 
 ## Recently Completed
 
+- **20260201174004 - Fix Chat Messaging** — Completed 2026-02-01
 - **20260201185428 - Sidebar UX Improvements + Lazy Session Creation** — Completed 2026-02-01
 - **20260201190211 - Fix Chat View Scroll** — Completed 2026-02-01
 - **20260201184336 - App-Wide Fade-In Animations** — Completed 2026-02-01

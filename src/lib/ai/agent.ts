@@ -19,7 +19,7 @@ export async function runAgent(params: RunAgentParams): Promise<AgentResult> {
   const parts: MessagePart[] = [];
 
   const result = streamText({
-    model: openrouter("anthropic/claude-sonnet-4sadfsa"),
+    model: openrouter("anthropic/claude-sonnet-4"),
     system: buildSystemPrompt(context),
     messages,
     tools: tools as Parameters<typeof streamText>[0]["tools"],
@@ -32,6 +32,10 @@ export async function runAgent(params: RunAgentParams): Promise<AgentResult> {
   });
 
   for await (const part of result.fullStream) {
+    if (part.type === "error") {
+      const err = part.error;
+      throw err instanceof Error ? err : new Error(String(err));
+    }
     if (part.type === "text-delta") {
       writer?.write({ type: "text-delta", text: part.text });
       const last = parts[parts.length - 1];

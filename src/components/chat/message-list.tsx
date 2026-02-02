@@ -21,7 +21,7 @@ export function MessageList({ messages, isStreaming, className }: MessageListPro
 
   return (
     <ScrollArea className={cn("flex-1", className)}>
-      <div className="flex flex-col gap-4 p-4">
+      <div className="flex flex-col gap-4 p-4 pb-20">
         {messages.map((message) => (
           <MessageBubble key={message.id} message={message} />
         ))}

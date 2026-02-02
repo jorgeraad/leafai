@@ -9,6 +9,7 @@ interface UseChatStreamReturn {
   sendMessage: (content: string) => Promise<void>
   isStreaming: boolean
   error: Error | null
+  dismissError: () => void
 }
 
 export function useChatStream(chatSessionId: string): UseChatStreamReturn {
@@ -17,6 +18,14 @@ export function useChatStream(chatSessionId: string): UseChatStreamReturn {
   const [error, setError] = useState<Error | null>(null)
   const abortRef = useRef<AbortController | null>(null)
   const streamingRef = useRef(false)
+  const errorTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  // Helper: set error with auto-dismiss after 10 seconds
+  function setErrorWithAutoDismiss(err: Error) {
+    if (errorTimerRef.current) clearTimeout(errorTimerRef.current)
+    setError(err)
+    errorTimerRef.current = setTimeout(() => setError(null), 10_000)
+  }
 
   // Fetch messages on mount
   useEffect(() => {
@@ -38,7 +47,9 @@ export function useChatStream(chatSessionId: string): UseChatStreamReturn {
         if (cancelled || streamingRef.current) return
         if (dbError) throw dbError
 
-        const mapped: Message[] = (data ?? []).map(mapRowToMessage)
+        const mapped: Message[] = (data ?? []).map(mapRowToMessage).filter(
+          (m) => !(m.role === "assistant" && (m.status === "error" || m.status === "pending"))
+        )
         setMessages(mapped)
 
         // Reconnect if latest message is still streaming
@@ -67,14 +78,8 @@ export function useChatStream(chatSessionId: string): UseChatStreamReturn {
         const chunk = JSON.parse(event.data)
 
         if (chunk.type === "error") {
-          setError(new Error(chunk.message ?? "Workflow error"))
-          setMessages((prev) =>
-            prev.map((m) =>
-              m.id === msg.id
-                ? { ...(m as AssistantMessage), status: "error" as const }
-                : m
-            )
-          )
+          setErrorWithAutoDismiss(new Error(chunk.message ?? "Workflow error"))
+          setMessages((prev) => prev.filter((m) => m.id !== msg.id))
           eventSource.close()
           setIsStreaming(false)
           return
@@ -122,13 +127,8 @@ export function useChatStream(chatSessionId: string): UseChatStreamReturn {
     eventSource.onerror = () => {
       eventSource.close()
       setIsStreaming(false)
-      setMessages((prev) =>
-        prev.map((m) =>
-          m.id === msg.id && m.status !== "error"
-            ? { ...(m as AssistantMessage), status: "error" as const }
-            : m
-        )
-      )
+      setErrorWithAutoDismiss(new Error("Connection lost while streaming"))
+      setMessages((prev) => prev.filter((m) => m.id !== msg.id))
     }
   }
 
@@ -203,14 +203,8 @@ export function useChatStream(chatSessionId: string): UseChatStreamReturn {
               const chunk = JSON.parse(payload)
 
               if (chunk.type === "error") {
-                setError(new Error(chunk.message ?? "Workflow error"))
-                setMessages((prev) =>
-                  prev.map((m) =>
-                    m.id === assistantTempId
-                      ? { ...(m as AssistantMessage), status: "error" as const }
-                      : m
-                  )
-                )
+                setErrorWithAutoDismiss(new Error(chunk.message ?? "Workflow error"))
+                setMessages((prev) => prev.filter((m) => m.id !== assistantTempId))
                 continue
               }
 
@@ -243,25 +237,18 @@ export function useChatStream(chatSessionId: string): UseChatStreamReturn {
           }
         }
 
-        // Mark completed (only if not already errored)
+        // Mark completed (message may have been removed on error)
         setMessages((prev) =>
           prev.map((m) =>
-            m.id === assistantTempId && m.status !== "error"
+            m.id === assistantTempId && m.status === "streaming"
               ? { ...(m as AssistantMessage), status: "completed" as const }
               : m
           )
         )
       } catch (err) {
         if ((err as Error).name !== "AbortError") {
-          setError(err instanceof Error ? err : new Error(String(err)))
-          // Mark assistant message as error instead of removing it
-          setMessages((prev) =>
-            prev.map((m) =>
-              m.id === assistantTempId
-                ? { ...(m as AssistantMessage), status: "error" as const }
-                : m
-            )
-          )
+          setErrorWithAutoDismiss(err instanceof Error ? err : new Error(String(err)))
+          setMessages((prev) => prev.filter((m) => m.id !== assistantTempId))
         }
       } finally {
         streamingRef.current = false
@@ -271,7 +258,12 @@ export function useChatStream(chatSessionId: string): UseChatStreamReturn {
     [chatSessionId]
   )
 
-  return { messages, sendMessage, isStreaming, error }
+  const dismissError = useCallback(() => {
+    if (errorTimerRef.current) clearTimeout(errorTimerRef.current)
+    setError(null)
+  }, [])
+
+  return { messages, sendMessage, isStreaming, error, dismissError }
 }
 
 // Map a Supabase row to our Message type

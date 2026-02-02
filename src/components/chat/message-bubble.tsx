@@ -60,14 +60,6 @@ export function MessageBubble({ message, className }: MessageBubbleProps) {
           // tool-result parts are rendered inline with their tool-call
           return null
         })}
-        {!isUser && message.status === "error" && (
-          <div className="mt-2 flex items-center gap-2 text-sm text-destructive">
-            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="h-4 w-4 shrink-0">
-              <path fillRule="evenodd" d="M18 10a8 8 0 1 1-16 0 8 8 0 0 1 16 0Zm-8-5a.75.75 0 0 1 .75.75v4.5a.75.75 0 0 1-1.5 0v-4.5A.75.75 0 0 1 10 5Zm0 10a1 1 0 1 0 0-2 1 1 0 0 0 0 2Z" clipRule="evenodd" />
-            </svg>
-            <span>An error occurred while generating this response.</span>
-          </div>
-        )}
       </div>
     </div>
   )
