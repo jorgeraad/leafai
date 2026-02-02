@@ -14,6 +14,8 @@ All 14 tasks from the design doc are complete. The app is fully wired end-to-end
 
 ## Recently Completed
 
+- **20260202100504 - Improve Citation Style in Agent Prompt** — Completed 2026-02-02
+- **20260202100205 - Sort Sidebar Sessions by Latest Message** — Completed 2026-02-02
 - **20260202080815 - Constrain Chat Input Width and Fix Bottom Spacing** — Completed 2026-02-02
 - **20260202080611 - Add Max-Width Constraint to Workspace Chat Message Container** — Completed 2026-02-02
 - **20260202075715 - Fix Mobile Streaming Message Width Overflow** — Completed 2026-02-02

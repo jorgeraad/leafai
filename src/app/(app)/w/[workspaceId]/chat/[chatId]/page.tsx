@@ -1,6 +1,6 @@
 "use client"
 
-import { use, useEffect, useRef, useState } from "react"
+import { use, useCallback, useEffect, useRef, useState } from "react"
 import { ChatHeader, ChatInput, MessageList } from "@/components/chat"
 import { useChatStream } from "@/hooks/use-chat-stream"
 import { createClient } from "@/lib/supabase/client"
@@ -26,7 +26,7 @@ export default function ChatPage({
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [error])
-  const { pendingMessageRef, updateSessionTitle } = useWorkspace()
+  const { pendingMessageRef, updateSessionTitle, bumpSession } = useWorkspace()
   const sentPending = useRef(false)
   const [title, setTitle] = useState<string | null | undefined>(undefined)
   const [sessionUpdatedAt, setSessionUpdatedAt] = useState<Date>(new Date())
@@ -91,6 +91,11 @@ export default function ChatPage({
     }
   }, [isStreaming, chatId, title, updateSessionTitle])
 
+  const handleSend = useCallback((content: string) => {
+    bumpSession(chatId)
+    return sendMessage(content)
+  }, [bumpSession, chatId, sendMessage])
+
   // Auto-send pending message from lazy session creation
   useEffect(() => {
     if (sentPending.current) return
@@ -98,9 +103,9 @@ export default function ChatPage({
     if (content) {
       sentPending.current = true
       pendingMessageRef.current = null
-      sendMessage(content)
+      handleSend(content)
     }
-  }, [pendingMessageRef, sendMessage])
+  }, [pendingMessageRef, handleSend])
 
   return (
     <div className="flex h-full flex-col">
@@ -135,7 +140,7 @@ export default function ChatPage({
           </button>
         </div>
       )}
-          <ChatInput onSend={sendMessage} isStreaming={isStreaming} className="w-full" />
+          <ChatInput onSend={handleSend} isStreaming={isStreaming} className="w-full" />
         </div>
       </div>
     </div>

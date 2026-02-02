@@ -9,6 +9,7 @@ interface WorkspaceContextValue {
   createSession: () => Promise<ChatSession>
   addSession: (session: ChatSession) => void
   updateSessionTitle: (sessionId: string, title: string) => void
+  bumpSession: (sessionId: string) => void
   deleteSession: (sessionId: string) => Promise<void>
   pendingMessageRef: React.RefObject<string | null>
   mobileMenuOpen: boolean

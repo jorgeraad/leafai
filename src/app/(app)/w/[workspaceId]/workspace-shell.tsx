@@ -20,7 +20,7 @@ export function WorkspaceShell({
   const pathname = usePathname()
   const router = useRouter()
   const isSettings = pathname.includes("/settings")
-  const { sessions, createSession, addSession, updateSessionTitle, deleteSession, isLoading } = useChatSessions(workspaceId)
+  const { sessions, createSession, addSession, updateSessionTitle, bumpSession, deleteSession, isLoading } = useChatSessions(workspaceId)
   const pendingMessageRef = useRef<string | null>(null)
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
 
@@ -33,7 +33,7 @@ export function WorkspaceShell({
   const openMobileMenu = useCallback(() => setMobileMenuOpen(true), [])
 
   return (
-    <WorkspaceContext.Provider value={{ workspaceId, hasGoogleDrive, createSession, addSession, updateSessionTitle, deleteSession, pendingMessageRef, mobileMenuOpen, openMobileMenu, closeMobileMenu }}>
+    <WorkspaceContext.Provider value={{ workspaceId, hasGoogleDrive, createSession, addSession, updateSessionTitle, bumpSession, deleteSession, pendingMessageRef, mobileMenuOpen, openMobileMenu, closeMobileMenu }}>
       <div className="flex h-dvh">
         {!isSettings && (
           <>

@@ -10,6 +10,7 @@ interface UseChatSessionsReturn {
   createSession: () => Promise<ChatSession>
   addSession: (session: ChatSession) => void
   updateSessionTitle: (sessionId: string, title: string) => void
+  bumpSession: (sessionId: string) => void
   deleteSession: (sessionId: string) => Promise<void>
   isLoading: boolean
 }
@@ -89,6 +90,15 @@ export function useChatSessions(workspaceId: string): UseChatSessionsReturn {
     )
   }, [])
 
+  const bumpSession = useCallback((sessionId: string) => {
+    setSessions((prev) => {
+      const idx = prev.findIndex((s) => s.id === sessionId)
+      if (idx <= 0) return prev
+      const session = { ...prev[idx], updatedAt: new Date() }
+      return [session, ...prev.slice(0, idx), ...prev.slice(idx + 1)]
+    })
+  }, [])
+
   const deleteSession = useCallback(async (sessionId: string) => {
     const { error } = await supabase
       .from("chat_sessions")
@@ -100,5 +110,5 @@ export function useChatSessions(workspaceId: string): UseChatSessionsReturn {
     setSessions((prev) => prev.filter((s) => s.id !== sessionId))
   }, [supabase])
 
-  return { sessions, createSession, addSession, updateSessionTitle, deleteSession, isLoading }
+  return { sessions, createSession, addSession, updateSessionTitle, bumpSession, deleteSession, isLoading }
 }
