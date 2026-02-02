@@ -10,6 +10,7 @@ interface UseChatSessionsReturn {
   createSession: () => Promise<ChatSession>
   addSession: (session: ChatSession) => void
   updateSessionTitle: (sessionId: string, title: string) => void
+  deleteSession: (sessionId: string) => Promise<void>
   isLoading: boolean
 }
 
@@ -88,5 +89,16 @@ export function useChatSessions(workspaceId: string): UseChatSessionsReturn {
     )
   }, [])
 
-  return { sessions, createSession, addSession, updateSessionTitle, isLoading }
+  const deleteSession = useCallback(async (sessionId: string) => {
+    const { error } = await supabase
+      .from("chat_sessions")
+      .delete()
+      .eq("id", sessionId)
+
+    if (error) throw new Error(error.message)
+
+    setSessions((prev) => prev.filter((s) => s.id !== sessionId))
+  }, [supabase])
+
+  return { sessions, createSession, addSession, updateSessionTitle, deleteSession, isLoading }
 }

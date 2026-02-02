@@ -59,6 +59,17 @@ export async function getChatSession(id: string): Promise<ChatSession | null> {
   return toChatSession(data)
 }
 
+export async function deleteChatSession(id: string): Promise<void> {
+  const supabase = await createClient()
+
+  const { error } = await supabase
+    .from('chat_sessions')
+    .delete()
+    .eq('id', id)
+
+  if (error) throw new Error(`Failed to delete chat session: ${error.message}`)
+}
+
 export async function updateChatSessionTitle(id: string, title: string): Promise<void> {
   const supabase = await createClient()
 
