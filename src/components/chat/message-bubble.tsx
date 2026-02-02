@@ -145,30 +145,6 @@ function injectCitationPills(children: ReactNode, citationMap: Map<number, Citat
   })
 }
 
-function StreamingCursor() {
-  return (
-    <span className="inline-block w-[2px] h-[1em] align-text-bottom bg-foreground ml-0.5 animate-[cursor-blink_1s_steps(2)_infinite]" />
-  )
-}
-
-/** Returns true only after `value` has been stable (unchanged) for `delay` ms */
-function useStable(value: string, delay: number): boolean {
-  const [stable, setStable] = useState(false)
-  const prevRef = useRef(value)
-
-  useEffect(() => {
-    if (value !== prevRef.current) {
-      setStable(false)
-      prevRef.current = value
-    }
-    const id = setTimeout(() => setStable(true), delay)
-    return () => clearTimeout(id)
-  }, [value, delay])
-
-  return stable
-}
-
-
 function ThinkingAnimation() {
   return (
     <div className="flex animate-fade-in-up justify-start px-4">
@@ -253,8 +229,6 @@ export function MessageBubble({ message, className }: MessageBubbleProps) {
     return <ThinkingAnimation />
   }
 
-  const isStreaming = message.role === "assistant" && message.status === "streaming"
-
   // Build a map of tool results keyed by toolCallId for quick lookup
   const toolResults = new Map<string, Extract<MessagePart, { type: "tool-result" }>>()
   for (const part of message.parts) {
@@ -262,13 +236,6 @@ export function MessageBubble({ message, className }: MessageBubbleProps) {
       toolResults.set(part.toolCallId, part)
     }
   }
-
-  // Serialize all parts to detect when content stops changing
-  const partsFingerprint = message.parts.map((p) =>
-    p.type === "text" ? p.text : p.type === "tool-call" ? p.toolCallId : ""
-  ).join("|")
-  const contentStable = useStable(partsFingerprint, 300)
-  const showCursor = isStreaming && contentStable
 
   return (
     <div
@@ -321,7 +288,6 @@ export function MessageBubble({ message, className }: MessageBubbleProps) {
           // tool-result parts are rendered inline with their tool-call
           return null
         })}
-        {showCursor && <StreamingCursor />}
       </div>
     </div>
   )
