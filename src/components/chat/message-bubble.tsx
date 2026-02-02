@@ -145,6 +145,12 @@ function injectCitationPills(children: ReactNode, citationMap: Map<number, Citat
   })
 }
 
+function StreamingCursor() {
+  return (
+    <span className="inline-block w-[2px] h-[1em] align-text-bottom bg-current animate-pulse ml-0.5" />
+  )
+}
+
 function ThinkingAnimation() {
   return (
     <div className="flex animate-fade-in-up justify-start px-4">
@@ -177,10 +183,12 @@ function MarkdownWithCitations({
   text,
   citations,
   isUser,
+  showCursor,
 }: {
   text: string
   citations: Citation[]
   isUser: boolean
+  showCursor?: boolean
 }) {
   const citationMap = useMemo(() => {
     const map = new Map<number, Citation>()
@@ -208,6 +216,7 @@ function MarkdownWithCitations({
           th: ({ children, ...props }) => <th {...props}>{injectCitationPills(children, citationMap)}</th>,
         } : markdownComponents}
       >{text}</Markdown>
+      {showCursor && <StreamingCursor />}
     </div>
   )
 }
@@ -223,11 +232,17 @@ export function MessageBubble({ message, className }: MessageBubbleProps) {
     return <ThinkingAnimation />
   }
 
+  const isStreaming = message.role === "assistant" && message.status === "streaming"
+
   // Build a map of tool results keyed by toolCallId for quick lookup
   const toolResults = new Map<string, Extract<MessagePart, { type: "tool-result" }>>()
-  for (const part of message.parts) {
+  let lastTextIndex = -1
+  for (let i = 0; i < message.parts.length; i++) {
+    const part = message.parts[i]
     if (part.type === "tool-result") {
       toolResults.set(part.toolCallId, part)
+    } else if (part.type === "text") {
+      lastTextIndex = i
     }
   }
 
@@ -258,6 +273,7 @@ export function MessageBubble({ message, className }: MessageBubbleProps) {
                   text={body}
                   citations={citations}
                   isUser={isUser}
+                  showCursor={isStreaming && i === lastTextIndex}
                 />
                 {citations.length > 0 && (
                   <div className="mt-2 flex flex-wrap gap-1.5 border-t pt-1.5 border-border/50">
