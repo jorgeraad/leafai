@@ -57,7 +57,7 @@ export function MessageBubble({ message, className }: MessageBubbleProps) {
     >
       <div
         className={cn(
-          "max-w-[90%] md:max-w-[80%] rounded-2xl px-3 py-2 md:px-4",
+          "max-w-[90%] md:max-w-[80%] overflow-hidden rounded-2xl px-3 py-2 md:px-4",
           isUser
             ? "bg-primary text-primary-foreground"
             : "bg-muted text-foreground"
@@ -66,7 +66,7 @@ export function MessageBubble({ message, className }: MessageBubbleProps) {
         {message.parts.map((part, i) => {
           if (part.type === "text") {
             return (
-              <div key={i} className={cn("prose prose-sm max-w-none prose-p:my-2 prose-ul:my-2 prose-ol:my-2 prose-li:my-0.5 prose-headings:my-3 prose-pre:my-2 prose-p:leading-relaxed", isUser ? "prose-invert" : "dark:prose-invert")}>
+              <div key={i} className={cn("prose prose-sm max-w-none overflow-x-auto break-words prose-p:my-2 prose-ul:my-2 prose-ol:my-2 prose-li:my-0.5 prose-headings:my-3 prose-pre:my-2 prose-p:leading-relaxed", isUser ? "prose-invert" : "dark:prose-invert")}>
                 <Markdown
                   remarkPlugins={[remarkGfm]}
                   components={{
