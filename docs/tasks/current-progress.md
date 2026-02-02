@@ -14,6 +14,11 @@ All 14 tasks from the design doc are complete. The app is fully wired end-to-end
 
 ## Recently Completed
 
+- **20260201223720 - Fix Workflow Stream Reconnection on Page Refresh** — Completed 2026-02-01
+- **20260201223339 - Guide Agent When Google Drive Is Disconnected** — Completed 2026-02-01
+- **20260201223140 - Fix Chat Title Showing "New Chat" on Page Reload** — Completed 2026-02-01
+
+- **20260201222949 - Improve Markdown Rendering in Chat Message Bubbles** — Completed 2026-02-01
 - **20260201210614 - Fix Agent Hallucinating Tool Calls** — Completed 2026-02-01
 - **20260201203555 - Fix Google Drive OAuth — Add GOOGLE_* Env Vars and Validation** — Completed 2026-02-01
 - **20260201194623 - Fix Chat Title Not Updating in UI** — Completed 2026-02-01

@@ -4,12 +4,13 @@ import { useEffect, useRef, useState } from "react"
 import { cn } from "@/lib/utils"
 
 interface ChatHeaderProps {
-  title: string | null
+  title: string | null | undefined
   className?: string
 }
 
 export function ChatHeader({ title, className }: ChatHeaderProps) {
-  const display = title ?? "New Chat"
+  // undefined = still loading (show nothing), null = no title, string = has title
+  const display = title === undefined ? "" : (title ?? "New Chat")
   const [visible, setVisible] = useState(display)
   const [fading, setFading] = useState(false)
   const prevTitle = useRef(display)

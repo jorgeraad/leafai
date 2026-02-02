@@ -28,8 +28,25 @@ export default function ChatPage({
   }, [error])
   const { pendingMessageRef, updateSessionTitle } = useWorkspace()
   const sentPending = useRef(false)
-  const [title, setTitle] = useState<string | null>(null)
+  const [title, setTitle] = useState<string | null | undefined>(undefined)
   const wasStreamingRef = useRef(false)
+
+  // Fetch existing title on mount (covers page reload)
+  useEffect(() => {
+    let cancelled = false
+    const supabase = createClient()
+    supabase
+      .from("chat_sessions")
+      .select("title")
+      .eq("id", chatId)
+      .single()
+      .then(({ data }) => {
+        if (!cancelled) {
+          setTitle(data?.title ?? null)
+        }
+      })
+    return () => { cancelled = true }
+  }, [chatId])
 
   // After streaming ends, poll for a generated title
   useEffect(() => {
