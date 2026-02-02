@@ -4,6 +4,8 @@ An AI chat application that connects to your Google Drive and lets you have conv
 
 The AI agent can search, list, and read files from your Drive on-demand — citing sources with links back to the original documents. Conversations run on durable workflows that survive disconnects, deployments, and serverless cold starts.
 
+This project was a deliberate learning exercise — an excuse to get hands-on with technologies I wanted experience with: Bun as a runtime, Vercel deployments and their durable workflow engine, the Google Drive API, and Supabase with row-level security. It also served as a testbed for a [task management system](#agent-task-management--parallelization) I built to coordinate multiple AI coding agents working in parallel on the same codebase.
+
 ## Table of Contents
 
 - [Features](#features)
@@ -15,21 +17,20 @@ The AI agent can search, list, and read files from your Drive on-demand — citi
 - [Project Structure](#project-structure)
 - [Getting Started](#getting-started)
 - [Commands](#commands)
-- [AI-Driven Development](#ai-driven-development)
+- [Agent Task Management & Parallelization](#agent-task-management--parallelization)
 
 ---
 
 ## Features
 
 - **Google Drive as context** — the AI agent has tools to search, browse, and read your Drive files during a conversation, citing documents inline
-- **Durable chat workflows** — powered by Vercel Workflow Dev Kit; streams survive disconnects and resume from the last token
+- **Durable chat workflows** — powered by Vercel Workflow Dev Kit; if the user navigates away, closes the tab, or the serverless function cold-starts mid-response, the client automatically reconnects and resumes streaming from the last received token
 - **Dual auth** — Google OAuth and email/password via Supabase Auth
 - **Per-user workspaces** — auto-created on first login, workspace-scoped sessions and integrations
 - **Public chat sharing** — share a read-only snapshot of any conversation via a short link
 - **Mobile-first responsive UI** — full-screen menu overlay on mobile, adaptive layout for chat and settings across all screen sizes
 - **Streaming SSE** — real-time token-by-token rendering with thinking indicators
 - **Auto-generated titles** — LLM generates a concise session title after the first exchange
-- **Encrypted tokens** — Google refresh tokens encrypted at rest with AES-256-GCM
 - **Row-Level Security** — every table has RLS policies; the database enforces access control independent of application code
 
 ---
@@ -286,13 +287,11 @@ supabase status          # Show local URLs and keys
 
 ---
 
-## AI-Driven Development
+## Agent Task Management & Parallelization
 
-This project was built almost entirely through AI agents, coordinated by a custom task management system designed to maximize parallelism and maintain a clear audit trail.
+I built a file-based task management system to coordinate multiple AI coding agents working on the same codebase simultaneously. The goal was to keep the pipeline full at all times — while one agent is implementing a feature, others are working on independent tasks in parallel, with explicit rules to prevent conflicts.
 
-### How it works
-
-The codebase includes a lightweight, file-based task system that lets multiple AI agents work on the same project concurrently — each in its own git worktree, on its own branch, with its own dev server.
+This was more formal than my usual workflow, and an experiment in how much structure you need to give agents before they can reliably self-coordinate.
 
 ```
 docs/tasks/

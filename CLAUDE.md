@@ -2,7 +2,7 @@
 
 ## Project Overview
 
-Leaf AI is a Next.js 16 (App Router) web app that lets users sign in with Google, connect a Google Drive folder, and chat with an AI agent that uses the folder contents as context. See `docs/design-claude.md` for the full design document.
+Leaf AI is a Next.js 16 (App Router) web app that lets users sign in with Google, connect a Google Drive folder, and chat with an AI agent that uses the folder contents as context. The agent runs on durable workflows (Vercel Workflow Dev Kit) and uses OpenRouter to call `anthropic/claude-sonnet-4`. See `docs/design-docs/design-claw.md` for the original design document.
 
 For setup instructions, prerequisites, and environment configuration, see `README.md`.
 
@@ -14,7 +14,8 @@ For setup instructions, prerequisites, and environment configuration, see `READM
 | Runtime | Bun |
 | Auth | Supabase Auth (Google OAuth + email/password) |
 | Database | Supabase PostgreSQL |
-| AI | Vercel AI SDK (`ai` + `@ai-sdk/react`) |
+| AI | Vercel AI SDK (`ai` + `@ai-sdk/react`) via OpenRouter (`@openrouter/ai-sdk-provider`) |
+| LLM | `anthropic/claude-sonnet-4` through OpenRouter |
 | Durable Workflows | Vercel Workflow Dev Kit |
 | Google Integration | `googleapis` (Drive API v3) |
 | Styling | Tailwind CSS v4 |
@@ -144,7 +145,7 @@ Phase 3 (serial):
 ## Interface-Driven Design
 
 - **Always define TypeScript interfaces/types before implementing** the code that uses them.
-- Place shared types in `src/types/` so all modules reference a single source of truth.
+- Place shared types in `src/lib/types.ts` so all modules reference a single source of truth.
 - API request/response shapes, database row types, and component props should all have explicit type definitions.
 - This enables parallel implementation — multiple agents can code against the same interface without coordinating on internal details.
 
