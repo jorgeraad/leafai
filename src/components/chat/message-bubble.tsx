@@ -1,6 +1,6 @@
 "use client"
 
-import { useMemo, useState, useRef, useEffect, useCallback, type ReactNode, Children, isValidElement, cloneElement, type ReactElement } from "react"
+import { useMemo, useState, useRef, useEffect, type ReactNode, Children, isValidElement, cloneElement, type ReactElement } from "react"
 import { createPortal } from "react-dom"
 import Markdown from "react-markdown"
 import remarkGfm from "remark-gfm"
@@ -145,11 +145,9 @@ function injectCitationPills(children: ReactNode, citationMap: Map<number, Citat
   })
 }
 
-const CURSOR_SENTINEL = "{{cursor}}"
-
 function StreamingCursor() {
   return (
-    <span className="inline-block w-px h-[1em] align-text-bottom bg-muted-foreground/70 ml-0.5 animate-[cursor-blink_1s_steps(2)_infinite]" />
+    <span className="inline-block w-[2px] h-[1em] align-text-bottom bg-foreground ml-0.5 animate-[cursor-blink_1s_steps(2)_infinite]" />
   )
 }
 
@@ -170,25 +168,6 @@ function useStable(value: string, delay: number): boolean {
   return stable
 }
 
-/** Replace CURSOR_SENTINEL text in React children with the blinking cursor component */
-function injectCursor(children: ReactNode): ReactNode {
-  return Children.map(children, (child) => {
-    if (typeof child === "string") {
-      const idx = child.indexOf(CURSOR_SENTINEL)
-      if (idx === -1) return child
-      const before = child.slice(0, idx)
-      const after = child.slice(idx + CURSOR_SENTINEL.length)
-      return <>{before}<StreamingCursor />{after}</>
-    }
-    if (isValidElement(child)) {
-      const el = child as ReactElement<{ children?: ReactNode }>
-      if (el.props.children) {
-        return cloneElement(el, {}, injectCursor(el.props.children))
-      }
-    }
-    return child
-  })
-}
 
 function ThinkingAnimation() {
   return (
@@ -222,12 +201,10 @@ function MarkdownWithCitations({
   text,
   citations,
   isUser,
-  showCursor,
 }: {
   text: string
   citations: Citation[]
   isUser: boolean
-  showCursor?: boolean
 }) {
   const citationMap = useMemo(() => {
     const map = new Map<number, Citation>()
@@ -239,26 +216,17 @@ function MarkdownWithCitations({
   const hasInlineMarkers = CITE_INLINE_RE.test(text)
   CITE_INLINE_RE.lastIndex = 0
 
-  // Only show cursor after text has been stable (no new tokens) for 300ms
-  const textStable = useStable(text, 300)
-  const cursorVisible = showCursor && textStable
-
-  // Append sentinel so the cursor renders inline within the last paragraph
-  const renderedText = cursorVisible ? text + CURSOR_SENTINEL : text
-
-  // Post-process children: inject citation pills and/or cursor as needed
+  // Post-process children: inject citation pills as needed
   const process = (children: ReactNode) => {
-    let result = children
-    if (hasInlineMarkers) result = injectCitationPills(result, citationMap)
-    if (cursorVisible) result = injectCursor(result)
-    return result
+    if (hasInlineMarkers) return injectCitationPills(children, citationMap)
+    return children
   }
 
   return (
     <div className={cn("prose prose-sm max-w-none overflow-x-auto break-words prose-p:my-2 prose-ul:my-2 prose-ol:my-2 prose-li:my-0.5 prose-headings:my-3 prose-pre:my-2 prose-p:leading-relaxed", isUser ? "prose-invert" : "dark:prose-invert")}>
       <Markdown
         remarkPlugins={[remarkGfm]}
-        components={(hasInlineMarkers || cursorVisible) ? {
+        components={hasInlineMarkers ? {
           ...markdownComponents,
           p: ({ children }) => <p className="my-2 leading-relaxed">{process(children)}</p>,
           li: ({ children, ...props }) => <li {...props}>{process(children)}</li>,
@@ -269,7 +237,7 @@ function MarkdownWithCitations({
           td: ({ children, ...props }) => <td {...props}>{process(children)}</td>,
           th: ({ children, ...props }) => <th {...props}>{process(children)}</th>,
         } : markdownComponents}
-      >{renderedText}</Markdown>
+      >{text}</Markdown>
     </div>
   )
 }
@@ -289,15 +257,18 @@ export function MessageBubble({ message, className }: MessageBubbleProps) {
 
   // Build a map of tool results keyed by toolCallId for quick lookup
   const toolResults = new Map<string, Extract<MessagePart, { type: "tool-result" }>>()
-  let lastTextIndex = -1
-  for (let i = 0; i < message.parts.length; i++) {
-    const part = message.parts[i]
+  for (const part of message.parts) {
     if (part.type === "tool-result") {
       toolResults.set(part.toolCallId, part)
-    } else if (part.type === "text") {
-      lastTextIndex = i
     }
   }
+
+  // Serialize all parts to detect when content stops changing
+  const partsFingerprint = message.parts.map((p) =>
+    p.type === "text" ? p.text : p.type === "tool-call" ? p.toolCallId : ""
+  ).join("|")
+  const contentStable = useStable(partsFingerprint, 300)
+  const showCursor = isStreaming && contentStable
 
   return (
     <div
@@ -326,7 +297,6 @@ export function MessageBubble({ message, className }: MessageBubbleProps) {
                   text={body}
                   citations={citations}
                   isUser={isUser}
-                  showCursor={isStreaming && i === lastTextIndex}
                 />
                 {citations.length > 0 && (
                   <div className="mt-2 flex flex-wrap gap-1.5 border-t pt-1.5 border-border/50">
@@ -351,6 +321,7 @@ export function MessageBubble({ message, className }: MessageBubbleProps) {
           // tool-result parts are rendered inline with their tool-call
           return null
         })}
+        {showCursor && <StreamingCursor />}
       </div>
     </div>
   )
