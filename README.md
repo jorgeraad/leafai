@@ -41,6 +41,7 @@ This project was a deliberate learning exercise — an excuse to get hands-on wi
 - **Mobile-first responsive UI** — full-screen menu overlay on mobile, adaptive layout for chat and settings across all screen sizes
 - **Streaming SSE** — real-time token-by-token rendering with thinking indicators
 - **Auto-generated titles** — LLM generates a concise session title after the first exchange
+- **Session management** — delete chat sessions you no longer need directly from the sidebar
 - **Row-Level Security** — every table has RLS policies; the database enforces access control independent of application code
 - **Comprehensive test coverage** — 131 tests across 23 suites covering API routes, durable workflows, database layer, auth flows, Google OAuth, UI components, and hooks
 
