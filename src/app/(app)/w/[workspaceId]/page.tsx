@@ -2,11 +2,12 @@
 
 import { useState } from "react"
 import { useRouter } from "next/navigation"
+import Link from "next/link"
 import { ChatHeader, ChatInput } from "@/components/chat"
 import { useWorkspace } from "./workspace-context"
 
 export default function WorkspaceHomePage() {
-  const { workspaceId, createSession, pendingMessageRef } = useWorkspace()
+  const { workspaceId, hasGoogleDrive, createSession, pendingMessageRef } = useWorkspace()
   const router = useRouter()
   const [isSending, setIsSending] = useState(false)
 
@@ -27,9 +28,27 @@ export default function WorkspaceHomePage() {
     <>
       <ChatHeader title={null} />
       <div className="flex flex-1 items-center justify-center">
-        <p className="text-muted-foreground">
-          Start a conversation below.
-        </p>
+        <div className="max-w-md text-center">
+          {hasGoogleDrive ? (
+            <>
+              <h2 className="text-lg font-semibold">Talk to your files</h2>
+              <p className="mt-1 text-sm text-muted-foreground">
+                Ask questions about your Google Drive documents, summarize files, or explore your content — just start typing below.
+              </p>
+            </>
+          ) : (
+            <>
+              <h2 className="text-lg font-semibold">Get started</h2>
+              <p className="mt-1 text-sm text-muted-foreground">
+                Connect your Google Drive in{" "}
+                <Link href={`/w/${workspaceId}/settings/integrations`} className="underline underline-offset-2 hover:text-foreground">
+                  Settings
+                </Link>{" "}
+                to chat with your files. Or just start a conversation below.
+              </p>
+            </>
+          )}
+        </div>
       </div>
       <ChatInput onSend={handleSend} isStreaming={isSending} />
     </>

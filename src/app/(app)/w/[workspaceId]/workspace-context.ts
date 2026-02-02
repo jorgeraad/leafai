@@ -5,9 +5,11 @@ import type { ChatSession } from "@/lib/types"
 
 interface WorkspaceContextValue {
   workspaceId: string
+  hasGoogleDrive: boolean
   createSession: () => Promise<ChatSession>
   addSession: (session: ChatSession) => void
   updateSessionTitle: (sessionId: string, title: string) => void
+  deleteSession: (sessionId: string) => Promise<void>
   pendingMessageRef: React.RefObject<string | null>
 }
 

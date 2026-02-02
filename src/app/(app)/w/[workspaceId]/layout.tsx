@@ -1,5 +1,6 @@
 import { redirect } from "next/navigation"
 import { createClient } from "@/lib/supabase/server"
+import { getIntegration } from "@/lib/db"
 import { WorkspaceShell } from "./workspace-shell"
 
 export default async function WorkspaceLayout({
@@ -32,5 +33,8 @@ export default async function WorkspaceLayout({
     redirect("/login")
   }
 
-  return <WorkspaceShell workspaceId={workspaceId}>{children}</WorkspaceShell>
+  const integration = await getIntegration(user.id, workspaceId, "google_drive")
+  const hasGoogleDrive = integration?.status === "active"
+
+  return <WorkspaceShell workspaceId={workspaceId} hasGoogleDrive={hasGoogleDrive}>{children}</WorkspaceShell>
 }
