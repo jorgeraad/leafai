@@ -106,8 +106,8 @@ export default function ChatPage({
     <div className="flex h-full flex-col">
       <ChatHeader title={title} chatSessionId={chatId} sessionUpdatedAt={sessionUpdatedAt} />
       <div className="relative min-h-0 flex-1">
-        <MessageList messages={messages} isStreaming={isStreaming} className="h-full" />
-        <div className="pointer-events-none absolute inset-x-0 bottom-0 flex flex-col items-start">
+        <MessageList messages={messages} isStreaming={isStreaming} className="h-full" contentClassName="mx-auto max-w-5xl px-8 sm:px-12 md:px-16" />
+        <div className="pointer-events-none absolute inset-x-0 bottom-0 mx-auto max-w-5xl px-8 sm:px-12 md:px-16 flex flex-col items-start">
           {visibleError && (
         <div
           className={`pointer-events-auto mx-4 mb-2 inline-flex max-w-lg items-center gap-2.5 rounded-lg border border-destructive/20 bg-destructive/5 px-4 py-2.5 text-sm text-destructive ${
