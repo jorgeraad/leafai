@@ -17,7 +17,10 @@ export function createDriveTools(drive: drive_v3.Drive) {
           q: `'${folder_id}' in parents and trashed = false`,
           fields: 'files(id, name, mimeType, modifiedTime)',
         })
-        return res.data.files ?? []
+        return (res.data.files ?? []).map((f) => ({
+          ...f,
+          webViewLink: `https://drive.google.com/file/d/${f.id}/view`,
+        }))
       },
     }),
 
@@ -29,19 +32,20 @@ export function createDriveTools(drive: drive_v3.Drive) {
         file_name: z.string().describe('File name (for display)'),
         mime_type: z.string().describe('MIME type of the file'),
       }),
-      execute: async ({ file_id, mime_type }) => {
+      execute: async ({ file_id, file_name, mime_type }) => {
+        const webViewLink = `https://drive.google.com/file/d/${file_id}/view`
         if (mime_type.startsWith('application/vnd.google-apps.')) {
           const res = await drive.files.export({
             fileId: file_id,
             mimeType: 'text/plain',
           })
-          return { content: res.data }
+          return { content: res.data, fileName: file_name, webViewLink }
         }
         const res = await drive.files.get(
           { fileId: file_id, alt: 'media' },
           { responseType: 'text' },
         )
-        return { content: res.data }
+        return { content: res.data, fileName: file_name, webViewLink }
       },
     }),
 
@@ -59,7 +63,10 @@ export function createDriveTools(drive: drive_v3.Drive) {
           fields: 'files(id, name, mimeType, modifiedTime, parents)',
           pageSize: 10,
         })
-        return res.data.files ?? []
+        return (res.data.files ?? []).map((f) => ({
+          ...f,
+          webViewLink: `https://drive.google.com/file/d/${f.id}/view`,
+        }))
       },
     }),
   }
