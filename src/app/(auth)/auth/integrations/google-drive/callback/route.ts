@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
-import { exchangeCodeForTokens } from '@/lib/google'
+import { exchangeCodeForTokens, createOAuth2Client } from '@/lib/google'
 import { upsertIntegration } from '@/lib/db'
 import { google } from 'googleapis'
 
@@ -28,7 +28,7 @@ export async function GET(request: NextRequest) {
   const tokens = await exchangeCodeForTokens(code)
 
   // Get the connected account email
-  const oauth2Client = new google.auth.OAuth2()
+  const oauth2Client = createOAuth2Client()
   oauth2Client.setCredentials({ access_token: tokens.accessToken })
   const oauth2 = google.oauth2({ version: 'v2', auth: oauth2Client })
   const { data: userInfo } = await oauth2.userinfo.get()

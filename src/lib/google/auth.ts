@@ -4,11 +4,18 @@ import type { GoogleTokens } from '@/lib/types'
 const DRIVE_READONLY_SCOPE = 'https://www.googleapis.com/auth/drive.readonly'
 
 export function createOAuth2Client() {
-  return new google.auth.OAuth2(
-    process.env.GOOGLE_CLIENT_ID,
-    process.env.GOOGLE_CLIENT_SECRET,
-    process.env.GOOGLE_REDIRECT_URI,
-  )
+  const clientId = process.env.GOOGLE_CLIENT_ID
+  const clientSecret = process.env.GOOGLE_CLIENT_SECRET
+  const redirectUri = process.env.GOOGLE_REDIRECT_URI
+  if (!clientId || !clientSecret || !redirectUri) {
+    const missing = [
+      !clientId && 'GOOGLE_CLIENT_ID',
+      !clientSecret && 'GOOGLE_CLIENT_SECRET',
+      !redirectUri && 'GOOGLE_REDIRECT_URI',
+    ].filter(Boolean).join(', ')
+    throw new Error(`Missing required env vars: ${missing}`)
+  }
+  return new google.auth.OAuth2(clientId, clientSecret, redirectUri)
 }
 
 export function getAuthUrl(state: string): string {
@@ -16,7 +23,7 @@ export function getAuthUrl(state: string): string {
   return client.generateAuthUrl({
     access_type: 'offline',
     prompt: 'consent',
-    scope: [DRIVE_READONLY_SCOPE],
+    scope: ['email', DRIVE_READONLY_SCOPE],
     state,
   })
 }
