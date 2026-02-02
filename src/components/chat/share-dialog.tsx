@@ -22,6 +22,7 @@ interface ShareDialogProps {
 }
 
 export function ShareDialog({ chatSessionId, sessionUpdatedAt }: ShareDialogProps) {
+  const [mounted, setMounted] = useState(false)
   const [open, setOpen] = useState(false)
   const [share, setShare] = useState<ShareState | null>(null)
   const [loading, setLoading] = useState(false)
@@ -31,6 +32,8 @@ export function ShareDialog({ chatSessionId, sessionUpdatedAt }: ShareDialogProp
   const isStale = share
     ? sessionUpdatedAt > new Date(share.sharedAt)
     : false
+
+  useEffect(() => { setMounted(true) }, [])
 
   // Fetch existing share state when dialog opens
   useEffect(() => {
@@ -84,6 +87,8 @@ export function ShareDialog({ chatSessionId, sessionUpdatedAt }: ShareDialogProp
     setCopied(true)
     setTimeout(() => setCopied(false), 2000)
   }, [shareUrl])
+
+  if (!mounted) return null
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
