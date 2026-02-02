@@ -1,8 +1,9 @@
 "use client"
 
-import { use } from "react"
+import { use, useEffect, useRef } from "react"
 import { ChatHeader, ChatInput, MessageList } from "@/components/chat"
 import { useChatStream } from "@/hooks/use-chat-stream"
+import { useWorkspace } from "../../workspace-context"
 
 export default function ChatPage({
   params,
@@ -11,9 +12,22 @@ export default function ChatPage({
 }) {
   const { chatId } = use(params)
   const { messages, sendMessage, isStreaming, error } = useChatStream(chatId)
+  const { pendingMessageRef } = useWorkspace()
+  const sentPending = useRef(false)
+
+  // Auto-send pending message from lazy session creation
+  useEffect(() => {
+    if (sentPending.current) return
+    const content = pendingMessageRef.current
+    if (content) {
+      sentPending.current = true
+      pendingMessageRef.current = null
+      sendMessage(content)
+    }
+  }, [pendingMessageRef, sendMessage])
 
   return (
-    <>
+    <div className="flex h-full flex-col">
       <ChatHeader title={null} />
       <MessageList messages={messages} isStreaming={isStreaming} className="flex-1" />
       {error && (
@@ -22,6 +36,6 @@ export default function ChatPage({
         </div>
       )}
       <ChatInput onSend={sendMessage} isStreaming={isStreaming} />
-    </>
+    </div>
   )
 }

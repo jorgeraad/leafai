@@ -27,6 +27,7 @@ export function Sidebar({
   onNewChat,
 }: SidebarProps) {
   const [collapsed, setCollapsed] = useState(false)
+  const [hovered, setHovered] = useState(false)
 
   return (
     <aside
@@ -35,49 +36,58 @@ export function Sidebar({
         collapsed ? "w-12" : "w-64"
       )}
     >
+      {/* Header */}
       <div className="flex items-center justify-between gap-2 border-b p-2">
-        <Button
-          variant="ghost"
-          size={collapsed ? "icon-sm" : "sm"}
-          className={cn(!collapsed && "justify-start gap-2")}
-          onClick={onNewChat}
-          aria-label="New chat"
-        >
-          <LeafLogo className="size-4 text-green-600" />
-          {!collapsed && <span className="font-semibold">Leaf</span>}
-        </Button>
-        {!collapsed && (
+        {collapsed ? (
+          <Button
+            variant="ghost"
+            size="icon-sm"
+            onClick={() => setCollapsed(false)}
+            onMouseEnter={() => setHovered(true)}
+            onMouseLeave={() => setHovered(false)}
+            aria-label="Expand sidebar"
+          >
+            {hovered ? (
+              <PanelLeft className="size-4" />
+            ) : (
+              <LeafLogo className="size-4 text-green-600" />
+            )}
+          </Button>
+        ) : (
           <>
-            <Button
-              variant="ghost"
-              size="icon-sm"
+            <button
               onClick={onNewChat}
-              aria-label="New chat"
+              className="flex items-center gap-2 rounded-md px-1.5 py-1 text-sm hover:bg-accent/50 transition-colors"
             >
-              <Plus className="size-4" />
-            </Button>
+              <LeafLogo className="size-4 text-green-600" />
+              <span className="font-semibold">Leaf</span>
+            </button>
             <Button
               variant="ghost"
               size="icon-sm"
-              onClick={() => setCollapsed((c) => !c)}
+              onClick={() => setCollapsed(true)}
               aria-label="Collapse sidebar"
             >
               <PanelLeftClose className="size-4" />
             </Button>
           </>
         )}
-        {collapsed && (
-          <Button
-            variant="ghost"
-            size="icon-sm"
-            onClick={() => setCollapsed((c) => !c)}
-            aria-label="Expand sidebar"
-          >
-            <PanelLeft className="size-4" />
-          </Button>
-        )}
       </div>
 
+      {/* New Chat button (expanded only) */}
+      {!collapsed && (
+        <div className="px-2 pt-2">
+          <button
+            onClick={onNewChat}
+            className="flex w-full items-center gap-2 rounded-md bg-foreground px-3 py-2 text-sm text-background transition-colors hover:bg-foreground/90"
+          >
+            <Plus className="size-4" />
+            New Chat
+          </button>
+        </div>
+      )}
+
+      {/* Session list */}
       {!collapsed && (
         <ScrollArea className="flex-1 px-2 py-2">
           {isLoading ? (

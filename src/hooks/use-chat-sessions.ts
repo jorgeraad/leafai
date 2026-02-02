@@ -8,6 +8,7 @@ import type { ChatSession } from "@/lib/types"
 interface UseChatSessionsReturn {
   sessions: ChatSession[]
   createSession: () => Promise<ChatSession>
+  addSession: (session: ChatSession) => void
   isLoading: boolean
 }
 
@@ -73,9 +74,12 @@ export function useChatSessions(workspaceId: string): UseChatSessionsReturn {
 
     const session = rowToSession(data)
     setSessions((prev) => [session, ...prev])
-    router.push(`/w/${workspaceId}/chat/${session.id}`)
     return session
-  }, [workspaceId, supabase, router])
+  }, [workspaceId, supabase])
 
-  return { sessions, createSession, isLoading }
+  const addSession = useCallback((session: ChatSession) => {
+    setSessions((prev) => [session, ...prev])
+  }, [])
+
+  return { sessions, createSession, addSession, isLoading }
 }

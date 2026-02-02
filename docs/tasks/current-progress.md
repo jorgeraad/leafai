@@ -6,7 +6,7 @@ All 14 tasks from the design doc are complete. The app is fully wired end-to-end
 
 ## Ready
 
-- **20260201185428 - Sidebar UX Improvements + Lazy Session Creation** — Sidebar hover-to-expand, header layout cleanup, new chat button styling, and lazy session creation (no DB row until first message sent).
+(none)
 
 ## In Progress
 
@@ -15,6 +15,8 @@ All 14 tasks from the design doc are complete. The app is fully wired end-to-end
 
 ## Recently Completed
 
+- **20260201185428 - Sidebar UX Improvements + Lazy Session Creation** — Completed 2026-02-01
+- **20260201190211 - Fix Chat View Scroll** — Completed 2026-02-01
 - **20260201184336 - App-Wide Fade-In Animations** — Completed 2026-02-01
 - **20260201182012 - Migrate AI SDK to use OpenRouter** — Completed 2026-02-01
 - **20260201180135 - Auto-Generate Chat Session Title** — Completed 2026-02-01

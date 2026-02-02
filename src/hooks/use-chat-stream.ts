@@ -16,12 +16,17 @@ export function useChatStream(chatSessionId: string): UseChatStreamReturn {
   const [isStreaming, setIsStreaming] = useState(false)
   const [error, setError] = useState<Error | null>(null)
   const abortRef = useRef<AbortController | null>(null)
+  const streamingRef = useRef(false)
 
   // Fetch messages on mount
   useEffect(() => {
     let cancelled = false
 
     async function fetchMessages() {
+      // If sendMessage is already in flight (e.g. from pending message),
+      // skip the fetch — optimistic state is the source of truth.
+      if (streamingRef.current) return
+
       try {
         const supabase = createClient()
         const { data, error: dbError } = await supabase
@@ -30,7 +35,7 @@ export function useChatStream(chatSessionId: string): UseChatStreamReturn {
           .eq("chat_session_id", chatSessionId)
           .order("created_at", { ascending: true })
 
-        if (cancelled) return
+        if (cancelled || streamingRef.current) return
         if (dbError) throw dbError
 
         const mapped: Message[] = (data ?? []).map(mapRowToMessage)
@@ -131,6 +136,7 @@ export function useChatStream(chatSessionId: string): UseChatStreamReturn {
     async (content: string) => {
       setError(null)
       setIsStreaming(true)
+      streamingRef.current = true
 
       // Optimistic user message
       const tempId = `temp-${Date.now()}`
@@ -258,6 +264,7 @@ export function useChatStream(chatSessionId: string): UseChatStreamReturn {
           )
         }
       } finally {
+        streamingRef.current = false
         setIsStreaming(false)
       }
     },
