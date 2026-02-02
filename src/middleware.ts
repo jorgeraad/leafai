@@ -19,8 +19,8 @@ export async function middleware(request: NextRequest) {
     return NextResponse.redirect(loginUrl);
   }
 
-  // Authenticated users on /login get redirected to their workspace
-  if (pathname === "/login" && user) {
+  // Authenticated users on / or /login get redirected to their workspace
+  if ((pathname === "/" || pathname === "/login" || pathname === "/signup") && user) {
     const { data } = await supabase
       .from("workspace_members")
       .select("workspace_id")
