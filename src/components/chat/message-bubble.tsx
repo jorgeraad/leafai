@@ -1,6 +1,6 @@
 "use client"
 
-import { useMemo, useState, useRef, useEffect, type ReactNode, Children, isValidElement, cloneElement, type ReactElement } from "react"
+import { useMemo, useState, useRef, useEffect, useCallback, type ReactNode, Children, isValidElement, cloneElement, type ReactElement } from "react"
 import { createPortal } from "react-dom"
 import Markdown from "react-markdown"
 import remarkGfm from "remark-gfm"
@@ -149,8 +149,25 @@ const CURSOR_SENTINEL = "{{cursor}}"
 
 function StreamingCursor() {
   return (
-    <span className="inline-block w-[2px] h-[1em] align-text-bottom bg-current ml-0.5 animate-[cursor-blink_1s_steps(2)_infinite]" />
+    <span className="inline-block w-px h-[1em] align-text-bottom bg-muted-foreground/70 ml-0.5 animate-[cursor-blink_1s_steps(2)_infinite]" />
   )
+}
+
+/** Returns true only after `value` has been stable (unchanged) for `delay` ms */
+function useStable(value: string, delay: number): boolean {
+  const [stable, setStable] = useState(false)
+  const prevRef = useRef(value)
+
+  useEffect(() => {
+    if (value !== prevRef.current) {
+      setStable(false)
+      prevRef.current = value
+    }
+    const id = setTimeout(() => setStable(true), delay)
+    return () => clearTimeout(id)
+  }, [value, delay])
+
+  return stable
 }
 
 /** Replace CURSOR_SENTINEL text in React children with the blinking cursor component */
@@ -222,14 +239,18 @@ function MarkdownWithCitations({
   const hasInlineMarkers = CITE_INLINE_RE.test(text)
   CITE_INLINE_RE.lastIndex = 0
 
+  // Only show cursor after text has been stable (no new tokens) for 300ms
+  const textStable = useStable(text, 300)
+  const cursorVisible = showCursor && textStable
+
   // Append sentinel so the cursor renders inline within the last paragraph
-  const renderedText = showCursor ? text + CURSOR_SENTINEL : text
+  const renderedText = cursorVisible ? text + CURSOR_SENTINEL : text
 
   // Post-process children: inject citation pills and/or cursor as needed
   const process = (children: ReactNode) => {
     let result = children
     if (hasInlineMarkers) result = injectCitationPills(result, citationMap)
-    if (showCursor) result = injectCursor(result)
+    if (cursorVisible) result = injectCursor(result)
     return result
   }
 
@@ -237,7 +258,7 @@ function MarkdownWithCitations({
     <div className={cn("prose prose-sm max-w-none overflow-x-auto break-words prose-p:my-2 prose-ul:my-2 prose-ol:my-2 prose-li:my-0.5 prose-headings:my-3 prose-pre:my-2 prose-p:leading-relaxed", isUser ? "prose-invert" : "dark:prose-invert")}>
       <Markdown
         remarkPlugins={[remarkGfm]}
-        components={(hasInlineMarkers || showCursor) ? {
+        components={(hasInlineMarkers || cursorVisible) ? {
           ...markdownComponents,
           p: ({ children }) => <p className="my-2 leading-relaxed">{process(children)}</p>,
           li: ({ children, ...props }) => <li {...props}>{process(children)}</li>,
