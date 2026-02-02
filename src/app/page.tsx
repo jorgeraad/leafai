@@ -28,14 +28,18 @@ export default function Home() {
     <div className="flex min-h-screen flex-col bg-background text-foreground">
       {/* Nav */}
       <nav className="flex items-center justify-between px-8 py-6 md:px-16">
-        <Logo />
-        <Button variant="outline" href="/login">
-          Sign in
-        </Button>
+        <FadeIn delay={0}>
+          <Logo />
+        </FadeIn>
+        <FadeIn delay={0}>
+          <Button variant="outline" href="/login">
+            Sign in
+          </Button>
+        </FadeIn>
       </nav>
 
       {/* Hero */}
-      <main className="hero-glow flex flex-1 flex-col items-center justify-center px-8 text-center">
+      <main className="hero-glow flex min-h-[calc(100vh-88px)] flex-col items-center justify-center px-8 text-center">
         <div className="mx-auto max-w-2xl">
           <FadeIn delay={0}>
             <div className="mb-8 inline-flex items-center gap-2 rounded-full border border-green-200 bg-green-50 px-4 py-1.5 text-sm text-green-700">
