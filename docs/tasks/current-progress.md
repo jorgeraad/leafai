@@ -14,6 +14,9 @@ All 14 tasks from the design doc are complete. The app is fully wired end-to-end
 
 ## Recently Completed
 
+- **20260201230829 - Public Chat Sharing** — Completed 2026-02-01
+- **20260201232014 - Add Thinking Animation for AI Response Loading** — Completed 2026-02-01
+- **20260201231443 - Add Citation Support with Drive Links** — Completed 2026-02-01
 - **20260201230746 - Session Context Menu with Delete Option** — Completed 2026-02-01
 - **20260201225125 - Add Sign Out Button to Settings Sidebar** — Completed 2026-02-01
 - **20260201223720 - Fix Workflow Stream Reconnection on Page Refresh** — Completed 2026-02-01

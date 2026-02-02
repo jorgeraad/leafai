@@ -38,6 +38,7 @@ export async function listChatSessions(workspaceId: string): Promise<ChatSession
     .from('chat_sessions')
     .select()
     .eq('workspace_id', workspaceId)
+    .is('shared_from_session_id', null)
     .order('updated_at', { ascending: false })
 
   if (error) throw new Error(`Failed to list chat sessions: ${error.message}`)

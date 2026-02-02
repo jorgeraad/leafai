@@ -10,9 +10,10 @@ interface MessageListProps {
   messages: Message[]
   isStreaming: boolean
   className?: string
+  contentClassName?: string
 }
 
-export function MessageList({ messages, isStreaming, className }: MessageListProps) {
+export function MessageList({ messages, isStreaming, className, contentClassName }: MessageListProps) {
   const bottomRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
@@ -21,7 +22,7 @@ export function MessageList({ messages, isStreaming, className }: MessageListPro
 
   return (
     <ScrollArea className={cn("flex-1", className)}>
-      <div className="flex flex-col gap-4 p-4 pb-20">
+      <div className={cn("flex flex-col gap-4 p-4 pb-20", contentClassName)}>
         {messages.map((message) => (
           <MessageBubble key={message.id} message={message} />
         ))}

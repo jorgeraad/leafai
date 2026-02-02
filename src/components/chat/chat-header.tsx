@@ -2,13 +2,16 @@
 
 import { useEffect, useRef, useState } from "react"
 import { cn } from "@/lib/utils"
+import { ShareDialog } from "./share-dialog"
 
 interface ChatHeaderProps {
   title: string | null | undefined
+  chatSessionId?: string
+  sessionUpdatedAt?: Date
   className?: string
 }
 
-export function ChatHeader({ title, className }: ChatHeaderProps) {
+export function ChatHeader({ title, chatSessionId, sessionUpdatedAt, className }: ChatHeaderProps) {
   // undefined = still loading (show nothing), null = no title, string = has title
   const display = title === undefined ? "" : (title ?? "New Chat")
   const [visible, setVisible] = useState(display)
@@ -31,7 +34,7 @@ export function ChatHeader({ title, className }: ChatHeaderProps) {
     <div
       data-slot="chat-header"
       className={cn(
-        "border-b bg-background px-4 py-3 font-semibold animate-fade-in",
+        "flex items-center justify-between border-b bg-background px-4 py-3 font-semibold animate-fade-in",
         className
       )}
     >
@@ -43,6 +46,9 @@ export function ChatHeader({ title, className }: ChatHeaderProps) {
       >
         {visible}
       </span>
+      {chatSessionId && sessionUpdatedAt && (
+        <ShareDialog chatSessionId={chatSessionId} sessionUpdatedAt={sessionUpdatedAt} />
+      )}
     </div>
   )
 }

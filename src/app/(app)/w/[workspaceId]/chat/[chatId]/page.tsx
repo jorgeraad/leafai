@@ -29,6 +29,7 @@ export default function ChatPage({
   const { pendingMessageRef, updateSessionTitle } = useWorkspace()
   const sentPending = useRef(false)
   const [title, setTitle] = useState<string | null | undefined>(undefined)
+  const [sessionUpdatedAt, setSessionUpdatedAt] = useState<Date>(new Date())
   const wasStreamingRef = useRef(false)
 
   // Fetch existing title on mount (covers page reload)
@@ -37,12 +38,13 @@ export default function ChatPage({
     const supabase = createClient()
     supabase
       .from("chat_sessions")
-      .select("title")
+      .select("title, updated_at")
       .eq("id", chatId)
       .single()
       .then(({ data }) => {
         if (!cancelled) {
           setTitle(data?.title ?? null)
+          if (data?.updated_at) setSessionUpdatedAt(new Date(data.updated_at))
         }
       })
     return () => { cancelled = true }
@@ -54,8 +56,10 @@ export default function ChatPage({
       wasStreamingRef.current = true
       return
     }
-    if (!wasStreamingRef.current || title) return
+    if (!wasStreamingRef.current) return
     wasStreamingRef.current = false
+    setSessionUpdatedAt(new Date())
+    if (title) return
 
     let cancelled = false
     const supabase = createClient()
@@ -100,7 +104,7 @@ export default function ChatPage({
 
   return (
     <div className="flex h-full flex-col">
-      <ChatHeader title={title} />
+      <ChatHeader title={title} chatSessionId={chatId} sessionUpdatedAt={sessionUpdatedAt} />
       <div className="relative min-h-0 flex-1">
         <MessageList messages={messages} isStreaming={isStreaming} className="h-full" />
         <div className="pointer-events-none absolute inset-x-0 bottom-0 flex flex-col items-start">
