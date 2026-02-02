@@ -3,7 +3,7 @@
 | Field              | Value |
 |--------------------|-------|
 | **Created**        | 2026-02-02 10:05:05 EST |
-| **Last Modified**  | 2026-02-02 10:20:15 EST |
+| **Last Modified**  | 2026-02-02 10:31:40 EST |
 | **Status**         | completed |
 | **Agent**          | clear-newt |
 | **Blocked-By**     | none |
@@ -43,3 +43,6 @@ Added streaming support for sources block — `parseCitations` now matches parti
 
 ### 2026-02-02 10:20:15 EST
 Added streaming support for inline citation markers — changed pill injection condition from `hasCitations` (requires parsed sources) to `hasInlineMarkers` (detects `[n]` patterns in text). Now pills render immediately as markers stream in, and gain tooltips/links once corresponding source lines arrive. All 131 tests pass. Task complete.
+
+### 2026-02-02 10:31:40 EST
+Fixed citation tooltip clipping — switched from CSS `absolute` positioning (clipped by ancestor overflow) to a React portal (`createPortal` to `document.body`) with `position: fixed` and `z-index: 9999`. Tooltip position is calculated from the pill's bounding rect on hover. All 131 tests pass.

@@ -1,6 +1,7 @@
 "use client"
 
-import { useMemo, useState, type ReactNode, Children, isValidElement, cloneElement, type ReactElement } from "react"
+import { useMemo, useState, useRef, useEffect, type ReactNode, Children, isValidElement, cloneElement, type ReactElement } from "react"
+import { createPortal } from "react-dom"
 import Markdown from "react-markdown"
 import remarkGfm from "remark-gfm"
 import type { Message, MessagePart } from "@/lib/types"
@@ -45,10 +46,23 @@ function parseCitations(text: string): { body: string; citations: Citation[] } {
 
 function CitationPill({ number, citation }: { number: number; citation?: Citation }) {
   const [hovered, setHovered] = useState(false)
+  const [coords, setCoords] = useState<{ top: number; left: number } | null>(null)
+  const ref = useRef<HTMLAnchorElement>(null)
+
+  useEffect(() => {
+    if (hovered && ref.current) {
+      const rect = ref.current.getBoundingClientRect()
+      setCoords({
+        top: rect.top - 4,
+        left: rect.left + rect.width / 2,
+      })
+    }
+  }, [hovered])
 
   return (
-    <span className="relative inline align-super">
+    <span className="inline align-super">
       <a
+        ref={ref}
         href={citation?.url}
         target="_blank"
         rel="noopener noreferrer"
@@ -58,10 +72,14 @@ function CitationPill({ number, citation }: { number: number; citation?: Citatio
       >
         {number}
       </a>
-      {hovered && citation && (
-        <span className="fixed-tooltip absolute bottom-full left-1/2 -translate-x-1/2 mb-1.5 px-2.5 py-1.5 rounded-lg bg-popover text-popover-foreground text-xs shadow-md border whitespace-nowrap z-50 pointer-events-none">
+      {hovered && citation && coords && createPortal(
+        <span
+          className="fixed -translate-x-1/2 -translate-y-full px-2.5 py-1.5 rounded-lg bg-popover text-popover-foreground text-xs shadow-md border whitespace-nowrap z-[9999] pointer-events-none"
+          style={{ top: coords.top, left: coords.left }}
+        >
           {citation.title}
-        </span>
+        </span>,
+        document.body
       )}
     </span>
   )
