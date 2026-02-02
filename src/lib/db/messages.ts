@@ -75,6 +75,17 @@ export async function createPendingAssistantMessage(chatSessionId: string, workf
   return toMessage(data as MessageRow) as AssistantMessage
 }
 
+export async function markMessageStreaming(messageId: string): Promise<void> {
+  const supabase = createAdminClient()
+
+  const { error } = await supabase
+    .from('messages')
+    .update({ status: 'streaming' })
+    .eq('id', messageId)
+
+  if (error) throw new Error(`Failed to mark message as streaming: ${error.message}`)
+}
+
 export async function completeAssistantMessage(messageId: string, parts: MessagePart[]): Promise<void> {
   const supabase = createAdminClient()
 

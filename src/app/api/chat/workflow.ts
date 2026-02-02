@@ -2,6 +2,7 @@ import { getWritable } from 'workflow'
 import {
   listMessages,
   getIntegration,
+  markMessageStreaming,
   completeAssistantMessage,
   failAssistantMessage,
 } from '@/lib/db'
@@ -30,6 +31,10 @@ export async function chatWorkflow(
 
   const { history, assistantMessageId } = await loadHistory(chatSessionId)
   const refreshToken = await getRefreshToken(userId, workspaceId)
+
+  if (assistantMessageId) {
+    await markStreaming(assistantMessageId)
+  }
 
   const result = await runAgentStep(history, refreshToken)
 
@@ -105,6 +110,11 @@ async function runAgentStep(
     await writer.close()
     return { error: message }
   }
+}
+
+async function markStreaming(assistantMessageId: string) {
+  'use step'
+  await markMessageStreaming(assistantMessageId)
 }
 
 async function saveResponse(assistantMessageId: string, parts: MessagePart[]) {
