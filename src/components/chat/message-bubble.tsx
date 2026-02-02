@@ -17,7 +17,7 @@ function ThinkingAnimation() {
       <span className="inline-block relative text-base text-muted-foreground/70 select-none">
         <span className="relative overflow-hidden inline-block">
           <span>Thinking...</span>
-          <span className="absolute inset-0 animate-[text-sheen_3s_ease-in-out_infinite] bg-gradient-to-r from-transparent via-foreground/25 to-transparent bg-[length:50%_100%] bg-no-repeat [-webkit-background-clip:text] [background-clip:text]">
+          <span className="absolute inset-0 animate-[text-sheen_1.5s_ease-in-out_infinite] bg-gradient-to-r from-transparent via-foreground/90 to-transparent bg-[length:50%_100%] bg-no-repeat [-webkit-background-clip:text] [background-clip:text]">
             Thinking...
           </span>
         </span>
