@@ -185,3 +185,14 @@
 .animate-fade-out-down {
   animation: fade-out-down 300ms ease-in both;
 }
+
+@keyframes shimmer {
+  100% { transform: translateX(100%); }
+}
+
+/* Sheen glides across text, then pauses before repeating */
+@keyframes text-sheen {
+  0% { background-position: -50% 0; }
+  40% { background-position: 150% 0; }
+  100% { background-position: 150% 0; }
+}
