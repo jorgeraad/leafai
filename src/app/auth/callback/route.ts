@@ -3,18 +3,19 @@ import { createClient } from "@/lib/supabase/server";
 import { getOrCreateWorkspace } from "@/lib/db/workspaces";
 
 export async function GET(request: Request) {
-  const { searchParams, origin } = new URL(request.url);
+  const { searchParams } = new URL(request.url);
   const code = searchParams.get("code");
+  const siteUrl = process.env.NEXT_PUBLIC_SITE_URL!;
 
   if (!code) {
-    return NextResponse.redirect(`${origin}/login?error=missing_code`);
+    return NextResponse.redirect(`${siteUrl}/login?error=missing_code`);
   }
 
   const supabase = await createClient();
   const { error } = await supabase.auth.exchangeCodeForSession(code);
 
   if (error) {
-    return NextResponse.redirect(`${origin}/login?error=exchange_failed`);
+    return NextResponse.redirect(`${siteUrl}/login?error=exchange_failed`);
   }
 
   const {
@@ -22,12 +23,12 @@ export async function GET(request: Request) {
   } = await supabase.auth.getUser();
 
   if (!user) {
-    return NextResponse.redirect(`${origin}/login?error=no_user`);
+    return NextResponse.redirect(`${siteUrl}/login?error=no_user`);
   }
 
   const displayName =
     user.user_metadata?.full_name || user.email?.split("@")[0] || "User";
   const workspace = await getOrCreateWorkspace(user.id, displayName);
 
-  return NextResponse.redirect(`${origin}/w/${workspace.id}`);
+  return NextResponse.redirect(`${siteUrl}/w/${workspace.id}`);
 }
