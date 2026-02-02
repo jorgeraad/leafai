@@ -28,7 +28,7 @@ export default function WorkspaceHomePage() {
     <>
       <ChatHeader title={null} />
       <div className="flex flex-1 items-center justify-center">
-        <div className="max-w-md text-center">
+        <div className="max-w-md animate-fade-in-up text-center">
           {hasGoogleDrive ? (
             <>
               <h2 className="text-lg font-semibold">Talk to your files</h2>
@@ -50,7 +50,9 @@ export default function WorkspaceHomePage() {
           )}
         </div>
       </div>
-      <ChatInput onSend={handleSend} isStreaming={isSending} />
+      <div className="mx-auto w-full max-w-5xl px-8 sm:px-12 md:px-16">
+        <ChatInput onSend={handleSend} isStreaming={isSending} className="w-full" />
+      </div>
     </>
   )
 }
