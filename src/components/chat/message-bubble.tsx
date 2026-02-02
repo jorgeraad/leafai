@@ -91,9 +91,9 @@ function SourceCard({ citation }: { citation: Citation }) {
       href={citation.url}
       target="_blank"
       rel="noopener noreferrer"
-      className="flex items-center gap-2 rounded-lg border bg-card px-3 py-2 text-xs hover:bg-accent transition-colors no-underline"
+      className="flex items-center gap-1.5 rounded-md border bg-card px-2 py-1 text-xs hover:bg-accent transition-colors no-underline"
     >
-      <span className="flex items-center justify-center h-5 w-5 shrink-0 rounded-full bg-primary/15 text-[10px] font-semibold text-primary">
+      <span className="flex items-center justify-center h-4 w-4 shrink-0 rounded-full bg-primary/15 text-[9px] font-semibold text-primary">
         {citation.number}
       </span>
       <span className="truncate text-card-foreground">{citation.title}</span>
@@ -260,7 +260,7 @@ export function MessageBubble({ message, className }: MessageBubbleProps) {
                   isUser={isUser}
                 />
                 {citations.length > 0 && (
-                  <div className="mt-3 flex flex-wrap gap-2 border-t pt-2 border-border/50">
+                  <div className="mt-2 flex flex-wrap gap-1.5 border-t pt-1.5 border-border/50">
                     {citations.map((c) => (
                       <SourceCard key={c.number} citation={c} />
                     ))}
