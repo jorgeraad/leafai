@@ -1,4 +1,4 @@
 export { createDriveTools } from './tools'
-export { runAgent, type RunAgentParams } from './agent'
+export { runAgent, AgentError, type RunAgentParams } from './agent'
 export { buildSystemPrompt } from './prompts'
 export { generateTitle, validateTitle } from './title'

@@ -14,6 +14,7 @@ All 14 tasks from the design doc are complete. The app is fully wired end-to-end
 
 ## Recently Completed
 
+- **20260202104808 - Persist Partial Content on Workflow Error** — Completed 2026-02-02
 - **20260202103844 - Add Blinking Cursor During Streaming** — Completed 2026-02-02
 - **20260202100504 - Improve Citation Style in Agent Prompt** — Completed 2026-02-02
 - **20260202100205 - Sort Sidebar Sessions by Latest Message** — Completed 2026-02-02

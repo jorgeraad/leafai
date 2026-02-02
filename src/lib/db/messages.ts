@@ -97,12 +97,12 @@ export async function completeAssistantMessage(messageId: string, parts: Message
   if (error) throw new Error(`Failed to complete assistant message: ${error.message}`)
 }
 
-export async function failAssistantMessage(messageId: string): Promise<void> {
+export async function failAssistantMessage(messageId: string, parts: MessagePart[] = []): Promise<void> {
   const supabase = createAdminClient()
 
   const { error } = await supabase
     .from('messages')
-    .update({ status: 'error' })
+    .update({ parts, status: 'error' })
     .eq('id', messageId)
 
   if (error) throw new Error(`Failed to fail assistant message: ${error.message}`)

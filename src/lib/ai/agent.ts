@@ -4,6 +4,13 @@ import type { ModelMessage } from "ai";
 import type { AgentResult, MessagePart } from "@/lib/types";
 import { buildSystemPrompt } from "./prompts";
 
+export class AgentError extends Error {
+  constructor(message: string, public readonly partialParts: MessagePart[]) {
+    super(message);
+    this.name = "AgentError";
+  }
+}
+
 export interface RunAgentParams {
   messages: ModelMessage[];
   tools: Record<string, unknown>;
@@ -34,7 +41,8 @@ export async function runAgent(params: RunAgentParams): Promise<AgentResult> {
   for await (const part of result.fullStream) {
     if (part.type === "error") {
       const err = part.error;
-      throw err instanceof Error ? err : new Error(String(err));
+      const message = err instanceof Error ? err.message : String(err);
+      throw new AgentError(message, parts);
     }
     if (part.type === "text-delta") {
       writer?.write({ type: "text-delta", text: part.text });

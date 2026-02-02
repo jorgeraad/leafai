@@ -23,10 +23,14 @@ vi.mock('@/lib/google', () => ({
 const mockRunAgent = vi.fn()
 const mockCreateDriveTools = vi.fn()
 
-vi.mock('@/lib/ai', () => ({
-  runAgent: (...args: unknown[]) => mockRunAgent(...args),
-  createDriveTools: (...args: unknown[]) => mockCreateDriveTools(...args),
-}))
+vi.mock('@/lib/ai', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@/lib/ai')>()
+  return {
+    ...actual,
+    runAgent: (...args: unknown[]) => mockRunAgent(...args),
+    createDriveTools: (...args: unknown[]) => mockCreateDriveTools(...args),
+  }
+})
 
 // Mock workflow's getWritable
 const mockWrite = vi.fn()
@@ -137,7 +141,9 @@ describe('chatWorkflow logic', () => {
     )
   })
 
-  it('calls failAssistantMessage on agent error and returns empty messageId', async () => {
+  it('calls failAssistantMessage with partial parts on agent error and returns empty messageId', async () => {
+    const { AgentError } = await import('@/lib/ai')
+
     mockListMessages.mockResolvedValue([
       {
         id: 'msg1',
@@ -159,14 +165,14 @@ describe('chatWorkflow logic', () => {
       },
     ])
 
+    const partialParts = [{ type: 'text' as const, text: 'partial response' }]
     mockGetIntegration.mockResolvedValue(null)
-    mockRunAgent.mockRejectedValue(new Error('LLM error'))
+    mockRunAgent.mockRejectedValue(new AgentError('LLM error', partialParts))
 
     const { chatWorkflow } = await import('./workflow')
 
-    // The workflow catches the error internally and returns { messageId: '' }
     const result = await chatWorkflow('s1', 'u1', 'ws1')
     expect(result).toEqual({ messageId: '' })
-    expect(mockFailAssistantMessage).toHaveBeenCalledWith('ast1')
+    expect(mockFailAssistantMessage).toHaveBeenCalledWith('ast1', partialParts)
   })
 })

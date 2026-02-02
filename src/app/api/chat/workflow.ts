@@ -7,7 +7,7 @@ import {
   failAssistantMessage,
 } from '@/lib/db'
 import { getDriveClient } from '@/lib/google'
-import { runAgent, createDriveTools } from '@/lib/ai'
+import { runAgent, createDriveTools, AgentError } from '@/lib/ai'
 import type { Message, MessagePart, AssistantMessage } from '@/lib/types'
 
 interface AgentStepResult {
@@ -18,6 +18,7 @@ interface AgentStepResult {
 
 interface AgentStepError {
   error: string
+  partialParts: MessagePart[]
   id?: undefined
   parts?: undefined
 }
@@ -38,9 +39,9 @@ export async function chatWorkflow(
 
   const result = await runAgentStep(history, refreshToken)
 
-  if ('error' in result) {
+  if (result.error !== undefined) {
     if (assistantMessageId) {
-      await failAssistant(assistantMessageId)
+      await failAssistant(assistantMessageId, result.partialParts)
     }
     return { messageId: '' }
   }
@@ -106,9 +107,10 @@ async function runAgentStep(
     return result
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error)
+    const partialParts = error instanceof AgentError ? error.partialParts : []
     await writer.write({ type: 'error', message })
     await writer.close()
-    return { error: message }
+    return { error: message, partialParts }
   }
 }
 
@@ -122,7 +124,7 @@ async function saveResponse(assistantMessageId: string, parts: MessagePart[]) {
   await completeAssistantMessage(assistantMessageId, parts)
 }
 
-async function failAssistant(assistantMessageId: string) {
+async function failAssistant(assistantMessageId: string, parts: MessagePart[]) {
   'use step'
-  await failAssistantMessage(assistantMessageId)
+  await failAssistantMessage(assistantMessageId, parts)
 }

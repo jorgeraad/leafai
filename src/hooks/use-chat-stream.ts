@@ -48,7 +48,8 @@ export function useChatStream(chatSessionId: string): UseChatStreamReturn {
         if (dbError) throw dbError
 
         const mapped: Message[] = (data ?? []).map(mapRowToMessage).filter(
-          (m) => !(m.role === "assistant" && (m.status === "error" || m.status === "pending"))
+          (m) => !(m.role === "assistant" && m.status === "pending") &&
+                 !(m.role === "assistant" && m.status === "error" && m.parts.length === 0)
         )
         setMessages(mapped)
 
@@ -79,7 +80,13 @@ export function useChatStream(chatSessionId: string): UseChatStreamReturn {
 
         if (chunk.type === "error") {
           setErrorWithAutoDismiss(new Error(chunk.message ?? "Workflow error"))
-          setMessages((prev) => prev.filter((m) => m.id !== msg.id))
+          setMessages((prev) =>
+            prev.map((m) =>
+              m.id === msg.id
+                ? { ...(m as AssistantMessage), status: "error" as const }
+                : m
+            ).filter((m) => !(m.id === msg.id && m.parts.length === 0))
+          )
           eventSource.close()
           setIsStreaming(false)
           return
@@ -128,7 +135,13 @@ export function useChatStream(chatSessionId: string): UseChatStreamReturn {
       eventSource.close()
       setIsStreaming(false)
       setErrorWithAutoDismiss(new Error("Connection lost while streaming"))
-      setMessages((prev) => prev.filter((m) => m.id !== msg.id))
+      setMessages((prev) =>
+        prev.map((m) =>
+          m.id === msg.id
+            ? { ...(m as AssistantMessage), status: "error" as const }
+            : m
+        ).filter((m) => !(m.id === msg.id && m.parts.length === 0))
+      )
     }
   }
 
@@ -204,7 +217,13 @@ export function useChatStream(chatSessionId: string): UseChatStreamReturn {
 
               if (chunk.type === "error") {
                 setErrorWithAutoDismiss(new Error(chunk.message ?? "Workflow error"))
-                setMessages((prev) => prev.filter((m) => m.id !== assistantTempId))
+                setMessages((prev) =>
+                  prev.map((m) =>
+                    m.id === assistantTempId
+                      ? { ...(m as AssistantMessage), status: "error" as const }
+                      : m
+                  ).filter((m) => !(m.id === assistantTempId && m.parts.length === 0))
+                )
                 continue
               }
 
@@ -248,7 +267,13 @@ export function useChatStream(chatSessionId: string): UseChatStreamReturn {
       } catch (err) {
         if ((err as Error).name !== "AbortError") {
           setErrorWithAutoDismiss(err instanceof Error ? err : new Error(String(err)))
-          setMessages((prev) => prev.filter((m) => m.id !== assistantTempId))
+          setMessages((prev) =>
+            prev.map((m) =>
+              m.id === assistantTempId
+                ? { ...(m as AssistantMessage), status: "error" as const }
+                : m
+            ).filter((m) => !(m.id === assistantTempId && m.parts.length === 0))
+          )
         }
       } finally {
         streamingRef.current = false
