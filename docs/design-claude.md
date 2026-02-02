@@ -1439,7 +1439,7 @@ Behavior:
 
 Component contracts:
 - `Sidebar`: renders the sidebar shell — logo/branding, "New Chat" button, `SessionList`, user menu area. Accepts `workspaceId` as prop. Is collapsible on mobile.
-- `SessionList`: receives `sessions: ChatSession[]` and `activeChatId: string | null`. Renders each session as a link. Active session is visually highlighted. Sessions show title or "Untitled Chat".
+- `SessionList`: receives `sessions: ChatSession[]` and `activeChatId: string | null`. Renders each session as a link. Active session is visually highlighted. Sessions show title or "New Chat".
 
 **Tests:**
 - `useChatSessions`: on mount, fetches sessions (mock Supabase). Returns sorted list.

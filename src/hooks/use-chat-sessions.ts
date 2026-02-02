@@ -9,6 +9,7 @@ interface UseChatSessionsReturn {
   sessions: ChatSession[]
   createSession: () => Promise<ChatSession>
   addSession: (session: ChatSession) => void
+  updateSessionTitle: (sessionId: string, title: string) => void
   isLoading: boolean
 }
 
@@ -81,5 +82,11 @@ export function useChatSessions(workspaceId: string): UseChatSessionsReturn {
     setSessions((prev) => [session, ...prev])
   }, [])
 
-  return { sessions, createSession, addSession, isLoading }
+  const updateSessionTitle = useCallback((sessionId: string, title: string) => {
+    setSessions((prev) =>
+      prev.map((s) => (s.id === sessionId ? { ...s, title } : s))
+    )
+  }, [])
+
+  return { sessions, createSession, addSession, updateSessionTitle, isLoading }
 }

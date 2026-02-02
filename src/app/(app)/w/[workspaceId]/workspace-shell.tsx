@@ -17,7 +17,7 @@ export function WorkspaceShell({
   const pathname = usePathname()
   const router = useRouter()
   const isSettings = pathname.includes("/settings")
-  const { sessions, createSession, addSession, isLoading } = useChatSessions(workspaceId)
+  const { sessions, createSession, addSession, updateSessionTitle, isLoading } = useChatSessions(workspaceId)
   const pendingMessageRef = useRef<string | null>(null)
 
   function handleNewChat() {
@@ -25,7 +25,7 @@ export function WorkspaceShell({
   }
 
   return (
-    <WorkspaceContext.Provider value={{ workspaceId, createSession, addSession, pendingMessageRef }}>
+    <WorkspaceContext.Provider value={{ workspaceId, createSession, addSession, updateSessionTitle, pendingMessageRef }}>
       <div className="flex h-dvh">
         {!isSettings && (
           <Sidebar

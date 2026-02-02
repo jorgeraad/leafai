@@ -7,6 +7,7 @@ interface WorkspaceContextValue {
   workspaceId: string
   createSession: () => Promise<ChatSession>
   addSession: (session: ChatSession) => void
+  updateSessionTitle: (sessionId: string, title: string) => void
   pendingMessageRef: React.RefObject<string | null>
 }
 

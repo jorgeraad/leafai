@@ -48,23 +48,23 @@ describe('generateTitle', () => {
     const { generateText } = await import('ai')
     vi.mocked(generateText).mockResolvedValue({ text: 'Drive File Analysis' } as never)
 
-    const title = await generateTitle('Can you help me analyze my Google Drive files?')
+    const title = await generateTitle([{ role: 'user', content: 'Can you help me analyze my Google Drive files?' }])
     expect(title).toBe('Drive File Analysis')
   })
 
-  it('falls back to message words when LLM returns invalid title', async () => {
+  it('returns null when LLM returns invalid title', async () => {
     const { generateText } = await import('ai')
     vi.mocked(generateText).mockResolvedValue({ text: 'This is way too long of a title with many many words' } as never)
 
-    const title = await generateTitle('Help me with something')
-    expect(title).toBe('Help me with something')
+    const title = await generateTitle([{ role: 'user', content: 'Help me with something' }])
+    expect(title).toBeNull()
   })
 
-  it('falls back to "New Chat" for empty message', async () => {
+  it('returns null for empty LLM response', async () => {
     const { generateText } = await import('ai')
     vi.mocked(generateText).mockResolvedValue({ text: '' } as never)
 
-    const title = await generateTitle('')
-    expect(title).toBe('New Chat')
+    const title = await generateTitle([{ role: 'user', content: '' }])
+    expect(title).toBeNull()
   })
 })

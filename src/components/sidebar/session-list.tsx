@@ -1,5 +1,6 @@
 "use client"
 
+import { useEffect, useRef, useState } from "react"
 import Link from "next/link"
 import { cn } from "@/lib/utils"
 import type { ChatSession } from "@/lib/types"
@@ -8,6 +9,34 @@ interface SessionListProps {
   sessions: ChatSession[]
   activeChatId: string | null
   workspaceId: string
+}
+
+function SessionTitle({ title }: { title: string }) {
+  const [visible, setVisible] = useState(title)
+  const [fading, setFading] = useState(false)
+  const prevRef = useRef(title)
+
+  useEffect(() => {
+    if (title === prevRef.current) return
+    prevRef.current = title
+    setFading(true)
+    const timer = setTimeout(() => {
+      setVisible(title)
+      setFading(false)
+    }, 200)
+    return () => clearTimeout(timer)
+  }, [title])
+
+  return (
+    <span
+      className={cn(
+        "inline-block transition-opacity duration-200",
+        fading ? "opacity-0" : "opacity-100"
+      )}
+    >
+      {visible}
+    </span>
+  )
 }
 
 export function SessionList({
@@ -41,7 +70,7 @@ export function SessionList({
               )}
               aria-current={isActive ? "page" : undefined}
             >
-              {session.title ?? "Untitled Chat"}
+              <SessionTitle title={session.title ?? "New Chat"} />
             </Link>
           </li>
         )

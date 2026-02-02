@@ -94,7 +94,7 @@ describe("SessionList", () => {
       />
     )
     expect(screen.getByText("First Chat")).toBeInTheDocument()
-    expect(screen.getByText("Untitled Chat")).toBeInTheDocument()
+    expect(screen.getByText("New Chat")).toBeInTheDocument()
   })
 
   it("highlights the active session", () => {
@@ -108,7 +108,7 @@ describe("SessionList", () => {
     const activeLink = screen.getByText("First Chat")
     expect(activeLink).toHaveAttribute("aria-current", "page")
 
-    const inactiveLink = screen.getByText("Untitled Chat")
+    const inactiveLink = screen.getByText("New Chat")
     expect(inactiveLink).not.toHaveAttribute("aria-current")
   })
 

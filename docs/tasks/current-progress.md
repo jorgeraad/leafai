@@ -6,7 +6,7 @@ All 14 tasks from the design doc are complete. The app is fully wired end-to-end
 
 ## Ready
 
-- **20260201194623 - Fix Chat Title Not Updating in UI** — Server generates titles but client never re-fetches; sidebar always shows "New Chat", header hardcoded to null | Touches: `src/hooks/use-chat-sessions.ts`, `src/app/(app)/w/[workspaceId]/chat/[chatId]/page.tsx`, `src/components/chat/chat-header.tsx` | Blocked-By: none
+(none)
 
 ## In Progress
 
@@ -14,6 +14,7 @@ All 14 tasks from the design doc are complete. The app is fully wired end-to-end
 
 ## Recently Completed
 
+- **20260201194623 - Fix Chat Title Not Updating in UI** — Completed 2026-02-01
 - **20260201174004 - Fix Chat Messaging** — Completed 2026-02-01
 - **20260201185428 - Sidebar UX Improvements + Lazy Session Creation** — Completed 2026-02-01
 - **20260201190211 - Fix Chat View Scroll** — Completed 2026-02-01
