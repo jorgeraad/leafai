@@ -11,6 +11,9 @@ interface WorkspaceContextValue {
   updateSessionTitle: (sessionId: string, title: string) => void
   deleteSession: (sessionId: string) => Promise<void>
   pendingMessageRef: React.RefObject<string | null>
+  mobileMenuOpen: boolean
+  openMobileMenu: () => void
+  closeMobileMenu: () => void
 }
 
 export const WorkspaceContext = createContext<WorkspaceContextValue | null>(null)

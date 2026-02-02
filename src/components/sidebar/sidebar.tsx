@@ -32,7 +32,7 @@ export function Sidebar({
   return (
     <aside
       className={cn(
-        "flex h-full flex-col border-r bg-background transition-[width] duration-200 animate-fade-in",
+        "hidden md:flex h-full flex-col border-r bg-background transition-[width] duration-200 animate-fade-in",
         collapsed ? "w-12" : "w-64"
       )}
     >

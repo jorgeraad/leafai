@@ -33,7 +33,7 @@ export function ChatInput({ onSend, isStreaming, className }: ChatInputProps) {
     <div
       data-slot="chat-input"
       className={cn(
-        "pointer-events-none relative animate-fade-in px-4 pb-4",
+        "pointer-events-none relative animate-fade-in px-3 pb-3 md:px-4 md:pb-4",
         className
       )}
     >

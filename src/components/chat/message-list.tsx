@@ -22,7 +22,7 @@ export function MessageList({ messages, isStreaming, className, contentClassName
 
   return (
     <ScrollArea className={cn("flex-1", className)}>
-      <div className={cn("flex flex-col gap-4 p-4 pb-20", contentClassName)}>
+      <div className={cn("flex flex-col gap-3 p-3 pb-20 md:gap-4 md:p-4", contentClassName)}>
         {messages.map((message) => (
           <MessageBubble key={message.id} message={message} />
         ))}

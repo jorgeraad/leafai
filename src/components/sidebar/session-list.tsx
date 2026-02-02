@@ -27,6 +27,7 @@ interface SessionListProps {
   sessions: ChatSession[]
   activeChatId: string | null
   workspaceId: string
+  onSessionClick?: () => void
 }
 
 function SessionTitle({ title }: { title: string }) {
@@ -61,10 +62,12 @@ function SessionItem({
   session,
   isActive,
   workspaceId,
+  onSessionClick,
 }: {
   session: ChatSession
   isActive: boolean
   workspaceId: string
+  onSessionClick?: () => void
 }) {
   const [showDeleteDialog, setShowDeleteDialog] = useState(false)
   const [isDeleting, setIsDeleting] = useState(false)
@@ -89,6 +92,7 @@ function SessionItem({
       <div className="group relative flex items-center">
         <Link
           href={`/w/${workspaceId}/chat/${session.id}`}
+          onClick={onSessionClick}
           className={cn(
             "block w-full truncate rounded-md px-3 py-2 pr-8 text-sm transition-colors",
             isActive
@@ -164,6 +168,7 @@ export function SessionList({
   sessions,
   activeChatId,
   workspaceId,
+  onSessionClick,
 }: SessionListProps) {
   if (sessions.length === 0) {
     return (
@@ -185,6 +190,7 @@ export function SessionList({
               session={session}
               isActive={isActive}
               workspaceId={workspaceId}
+              onSessionClick={onSessionClick}
             />
           </li>
         )

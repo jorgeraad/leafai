@@ -57,7 +57,7 @@ export function MessageBubble({ message, className }: MessageBubbleProps) {
     >
       <div
         className={cn(
-          "max-w-[80%] rounded-2xl px-4 py-2",
+          "max-w-[90%] md:max-w-[80%] rounded-2xl px-3 py-2 md:px-4",
           isUser
             ? "bg-primary text-primary-foreground"
             : "bg-muted text-foreground"

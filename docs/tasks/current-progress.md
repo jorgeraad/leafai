@@ -10,10 +10,11 @@ All 14 tasks from the design doc are complete. The app is fully wired end-to-end
 
 ## In Progress
 
-(none)
+- **20260201235925 - Add Coverage Script for Unit Tests** — Add test:coverage script with per-file breakdown | Touches: `package.json, vitest.config.ts` | Agent: cool-gecko
 
 ## Recently Completed
 
+- **20260201235607 - Mobile Responsive Sidebar and Layout** — Completed 2026-02-01
 - **20260201234013 - Redirect Home to Workspace When Signed In** — Completed 2026-02-01
 - **20260201230829 - Public Chat Sharing** — Completed 2026-02-01
 - **20260201232014 - Add Thinking Animation for AI Response Loading** — Completed 2026-02-01
