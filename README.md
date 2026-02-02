@@ -359,13 +359,15 @@ By the end, implementing features was extremely fast — I'd call `/task-e2e`, d
 
 The key was that the structure encourages agents to be disciplined in ways that compound: breaking tasks down into small pieces means more can run in parallel, writing tests first means the acceptance criteria are executable, and tracking file ownership means agents don't step on each other.
 
+The completed task files in `docs/tasks/completed/` serve as a detailed build log — each one captures what was built, in what order, what it depended on, and the decisions made along the way. Reading them chronologically (they're timestamped) gives a full picture of how the project was assembled.
+
 ### Where to look
 
 | Resource | Path |
 |---|---|
 | Task management spec | [`docs/task-management.md`](docs/task-management.md) |
 | Slash command definitions | [`.claude/skills/`](.claude/skills/) |
-| All completed tasks (35) | [`docs/tasks/completed/`](docs/tasks/completed/) |
+| All completed tasks (41) | [`docs/tasks/completed/`](docs/tasks/completed/) |
 | Project status snapshot | [`docs/tasks/current-progress.md`](docs/tasks/current-progress.md) |
 | Original design doc | [`docs/design-docs/design-claw.md`](docs/design-docs/design-claw.md) |
 | Agent name generator | [`scripts/agent-name.sh`](scripts/agent-name.sh) |
