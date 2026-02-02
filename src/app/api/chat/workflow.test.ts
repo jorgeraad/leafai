@@ -2,12 +2,14 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 
 const mockListMessages = vi.fn()
 const mockGetIntegration = vi.fn()
+const mockMarkMessageStreaming = vi.fn()
 const mockCompleteAssistantMessage = vi.fn()
 const mockFailAssistantMessage = vi.fn()
 
 vi.mock('@/lib/db', () => ({
   listMessages: (...args: unknown[]) => mockListMessages(...args),
   getIntegration: (...args: unknown[]) => mockGetIntegration(...args),
+  markMessageStreaming: (...args: unknown[]) => mockMarkMessageStreaming(...args),
   completeAssistantMessage: (...args: unknown[]) => mockCompleteAssistantMessage(...args),
   failAssistantMessage: (...args: unknown[]) => mockFailAssistantMessage(...args),
 }))
@@ -29,19 +31,12 @@ vi.mock('@/lib/ai', () => ({
 // Mock workflow's getWritable
 const mockWrite = vi.fn()
 const mockReleaseLock = vi.fn()
-const mockGetWriter = vi.fn(() => ({ write: mockWrite, releaseLock: mockReleaseLock }))
+const mockClose = vi.fn()
+const mockGetWriter = vi.fn(() => ({ write: mockWrite, releaseLock: mockReleaseLock, close: mockClose }))
 
 vi.mock('workflow', () => ({
   getWritable: vi.fn(() => ({ getWriter: mockGetWriter })),
 }))
-
-// We can't easily test 'use workflow'/'use step' directives in unit tests,
-// so we test the logic by importing the internal functions.
-// For this test, we'll test the workflow function directly — the directives
-// are no-ops in a test environment without the workflow runtime.
-
-// Note: importing chatWorkflow directly won't work with 'use workflow' directive
-// in a test env. We'll test the constituent logic instead.
 
 describe('chatWorkflow logic', () => {
   beforeEach(() => {
@@ -85,7 +80,6 @@ describe('chatWorkflow logic', () => {
       parts: [{ type: 'text', text: 'Hi there!' }],
     })
 
-    // Import and run the workflow (directives are no-ops in test)
     const { chatWorkflow } = await import('./workflow')
     const result = await chatWorkflow('s1', 'u1', 'ws1')
 
@@ -143,7 +137,7 @@ describe('chatWorkflow logic', () => {
     )
   })
 
-  it('calls failAssistantMessage on agent error', async () => {
+  it('calls failAssistantMessage on agent error and returns empty messageId', async () => {
     mockListMessages.mockResolvedValue([
       {
         id: 'msg1',
@@ -170,7 +164,9 @@ describe('chatWorkflow logic', () => {
 
     const { chatWorkflow } = await import('./workflow')
 
-    await expect(chatWorkflow('s1', 'u1', 'ws1')).rejects.toThrow('LLM error')
+    // The workflow catches the error internally and returns { messageId: '' }
+    const result = await chatWorkflow('s1', 'u1', 'ws1')
+    expect(result).toEqual({ messageId: '' })
     expect(mockFailAssistantMessage).toHaveBeenCalledWith('ast1')
   })
 })

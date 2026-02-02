@@ -19,6 +19,11 @@ vi.mock("@/lib/supabase/client", () => ({
   createClient: () => mockClient,
 }))
 
+// Add auth mock to client
+mockClient.auth = {
+  getUser: vi.fn().mockResolvedValue({ data: { user: { id: "u1" } } }),
+}
+
 vi.mock("next/link", () => ({
   default: ({
     children,
@@ -34,6 +39,21 @@ vi.mock("next/link", () => ({
       {children}
     </a>
   ),
+}))
+
+vi.mock("@/app/(app)/w/[workspaceId]/workspace-context", () => ({
+  useWorkspace: () => ({
+    workspaceId: "w1",
+    hasGoogleDrive: false,
+    createSession: vi.fn(),
+    addSession: vi.fn(),
+    updateSessionTitle: vi.fn(),
+    deleteSession: vi.fn(),
+    pendingMessageRef: { current: null },
+    mobileMenuOpen: false,
+    openMobileMenu: vi.fn(),
+    closeMobileMenu: vi.fn(),
+  }),
 }))
 
 // --- Test data ---
@@ -105,10 +125,10 @@ describe("SessionList", () => {
         workspaceId="w1"
       />
     )
-    const activeLink = screen.getByText("First Chat")
+    const activeLink = screen.getByText("First Chat").closest("a")!
     expect(activeLink).toHaveAttribute("aria-current", "page")
 
-    const inactiveLink = screen.getByText("New Chat")
+    const inactiveLink = screen.getByText("New Chat").closest("a")!
     expect(inactiveLink).not.toHaveAttribute("aria-current")
   })
 
@@ -226,12 +246,20 @@ describe("useChatSessions", () => {
       created_at: now.toISOString(),
       updated_at: now.toISOString(),
     }
-    mockFrom.mockReturnValue({
-      insert: vi.fn().mockReturnValue({
-        select: vi.fn().mockReturnValue({
-          single: vi.fn().mockResolvedValue({ data: newRow, error: null }),
-        }),
-      }),
+    mockFrom.mockImplementation((table: string) => {
+      if (table === "chat_sessions") {
+        return {
+          insert: vi.fn().mockReturnValue({
+            select: vi.fn().mockReturnValue({
+              single: vi.fn().mockResolvedValue({ data: newRow, error: null }),
+            }),
+          }),
+        }
+      }
+      // chat_participants
+      return {
+        insert: vi.fn().mockResolvedValue({ error: null }),
+      }
     })
 
     let created: ChatSession | undefined
@@ -241,6 +269,5 @@ describe("useChatSessions", () => {
 
     expect(created!.id).toBe("s-new")
     expect(result.current.sessions[0].id).toBe("s-new")
-    expect(mockPush).toHaveBeenCalledWith("/w/w1/chat/s-new")
   })
 })

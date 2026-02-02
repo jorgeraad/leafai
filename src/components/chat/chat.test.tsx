@@ -5,6 +5,21 @@ import type { Message, UserMessage, AssistantMessage } from '@/lib/types'
 
 afterEach(cleanup)
 
+vi.mock("@/app/(app)/w/[workspaceId]/workspace-context", () => ({
+  useWorkspace: () => ({
+    workspaceId: "w1",
+    hasGoogleDrive: false,
+    createSession: vi.fn(),
+    addSession: vi.fn(),
+    updateSessionTitle: vi.fn(),
+    deleteSession: vi.fn(),
+    pendingMessageRef: { current: null },
+    mobileMenuOpen: false,
+    openMobileMenu: vi.fn(),
+    closeMobileMenu: vi.fn(),
+  }),
+}))
+
 import { ChatHeader } from './chat-header'
 import { ChatInput } from './chat-input'
 import { MessageBubble } from './message-bubble'
@@ -40,12 +55,12 @@ describe('ChatInput', () => {
     expect(input).toHaveValue('')
   })
 
-  it('is disabled when isStreaming is true', () => {
+  it('disables submit button when isStreaming is true', () => {
     const onSend = vi.fn()
     render(<ChatInput onSend={onSend} isStreaming={true} />)
 
-    const input = screen.getByPlaceholderText('Type a message…')
-    expect(input).toBeDisabled()
+    const button = screen.getByRole('button', { name: '' })
+    expect(button).toBeDisabled()
   })
 
   it('does not call onSend with empty input', () => {

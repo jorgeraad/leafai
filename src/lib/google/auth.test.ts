@@ -41,7 +41,7 @@ describe('getAuthUrl', () => {
     expect(mockGenerateAuthUrl).toHaveBeenCalledWith({
       access_type: 'offline',
       prompt: 'consent',
-      scope: ['https://www.googleapis.com/auth/drive.readonly'],
+      scope: ['email', 'https://www.googleapis.com/auth/drive.readonly'],
       state: 'test-state',
     })
     expect(url).toBe('https://accounts.google.com/o/oauth2/v2/auth?...')

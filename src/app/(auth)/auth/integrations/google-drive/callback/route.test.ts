@@ -17,6 +17,9 @@ vi.mock('@/lib/google', () => ({
     accessToken: 'access-tok',
     refreshToken: 'refresh-tok',
   }),
+  createOAuth2Client: vi.fn().mockReturnValue({
+    setCredentials: vi.fn(),
+  }),
 }))
 
 vi.mock('@/lib/db', () => ({

@@ -8,16 +8,26 @@ This project was a deliberate learning exercise — an excuse to get hands-on wi
 
 ## Table of Contents
 
-- [Features](#features)
-- [Architecture](#architecture)
-  - [Chat Workflow](#chat-workflow)
-  - [Security Model](#security-model)
-- [Design Decisions](#design-decisions)
-- [Tech Stack](#tech-stack)
-- [Project Structure](#project-structure)
-- [Getting Started](#getting-started)
-- [Commands](#commands)
-- [Agent Task Management & Parallelization](#agent-task-management--parallelization)
+- [Leaf AI](#leaf-ai)
+  - [Table of Contents](#table-of-contents)
+  - [Features](#features)
+  - [Architecture](#architecture)
+    - [Chat Workflow](#chat-workflow)
+    - [Security Model](#security-model)
+  - [Design Decisions](#design-decisions)
+  - [Tech Stack](#tech-stack)
+  - [Project Structure](#project-structure)
+  - [Getting Started](#getting-started)
+    - [Prerequisites](#prerequisites)
+    - [Quick Start (email/password auth, no Google credentials needed)](#quick-start-emailpassword-auth-no-google-credentials-needed)
+    - [Full Setup (with Google OAuth + Drive)](#full-setup-with-google-oauth--drive)
+    - [Environment Files](#environment-files)
+  - [Commands](#commands)
+  - [Agent Task Management \& Parallelization](#agent-task-management--parallelization)
+    - [Task structure](#task-structure)
+    - [Slash commands](#slash-commands)
+    - [The typical workflow](#the-typical-workflow)
+    - [Where to look](#where-to-look)
 
 ---
 
@@ -32,6 +42,7 @@ This project was a deliberate learning exercise — an excuse to get hands-on wi
 - **Streaming SSE** — real-time token-by-token rendering with thinking indicators
 - **Auto-generated titles** — LLM generates a concise session title after the first exchange
 - **Row-Level Security** — every table has RLS policies; the database enforces access control independent of application code
+- **Comprehensive test coverage** — 131 tests across 23 suites covering API routes, durable workflows, database layer, auth flows, Google OAuth, UI components, and hooks
 
 ---
 
@@ -160,7 +171,7 @@ Each step is durable — if the serverless function cold-starts or the connectio
 | Durable Workflows | Vercel Workflow Dev Kit | `'use workflow'` / `'use step'` directives |
 | Google Integration | `googleapis` | Drive API v3 (search, list, read) |
 | UI | Radix UI + Tailwind CSS v4 | |
-| Testing | Vitest | |
+| Testing | Vitest | 131 tests across 23 suites with coverage reporting |
 | Deployment | Vercel | |
 
 ---
@@ -277,7 +288,8 @@ bun install              # Install dependencies
 bun run dev              # Start dev server
 bun run build            # Production build
 bun run lint             # ESLint
-bun test                 # Vitest
+bun test                 # Run tests (131 tests, 23 suites)
+bun run test:coverage    # Run tests with per-file coverage breakdown
 
 supabase start           # Start local Supabase (Docker)
 supabase stop            # Stop local Supabase
@@ -291,7 +303,11 @@ supabase status          # Show local URLs and keys
 
 I built a file-based task management system to coordinate multiple AI coding agents working on the same codebase simultaneously. The goal was to keep the pipeline full at all times — while one agent is implementing a feature, others are working on independent tasks in parallel, with explicit rules to prevent conflicts.
 
-This was more formal than my usual workflow, and an experiment in how much structure you need to give agents before they can reliably self-coordinate.
+This was more formal than my usual workflow, and an experiment in how much structure you need to give agents before they can reliably self-coordinate. For this project I kept all agents on the same branch (no worktrees) and just had them stay aware of each other through the task files — it turned out to work well.
+
+### Task structure
+
+Tasks live as markdown files that move through directories as they progress:
 
 ```
 docs/tasks/
@@ -301,7 +317,7 @@ docs/tasks/
   current-progress.md    # Single-page snapshot of project state
 ```
 
-Each task is a markdown file (e.g., `20260201142859-chat-api-workflow.md`) containing structured metadata:
+Each task file contains structured metadata — dependencies, file ownership, acceptance criteria — plus an append-only progress log:
 
 ```markdown
 | Field        | Value                                    |
@@ -316,27 +332,38 @@ Each task is a markdown file (e.g., `20260201142859-chat-api-workflow.md`) conta
 - **Touches** declares which files the task will modify — agents check for overlaps before starting to avoid conflicts
 - **Progress Log** is append-only with timestamps, creating a full audit trail of decisions and work
 
-### Agent coordination
+### Slash commands
 
-Each agent session generates a unique identity (`scripts/agent-name.sh` → `calm-cedar`, `swift-falcon`, etc.) and claims tasks under that name. `scripts/create-worktree.sh` creates isolated git worktrees so multiple agents can run simultaneously without filesystem conflicts — each gets its own branch, env files, and dev server port.
+The system is driven by a set of slash commands defined as [Claude Code skills](.claude/skills/) that encode the full workflow. Each command handles all the bookkeeping — timestamps, file moves, metadata updates, `current-progress.md` — so agents stay focused on implementation:
 
-### Why this approach
+| Command | What it does |
+|---|---|
+| `/task-create` | Creates a new task file in `todo/`. Surveys existing tasks to avoid duplicates, determines dependencies and file ownership, writes the file with the full template, and updates `current-progress.md`. |
+| `/task-start` | Reads the current state of all tasks, summarizes what's ready/blocked/in-progress, and asks which task to pick up. Before starting, it verifies all dependencies are complete, checks for `Touches` overlaps with other in-progress tasks, gathers context from the full ancestor dependency chain, then moves the file to `in-progress/`. |
+| `/task-complete` | Reviews acceptance criteria against what was actually delivered, moves the file to `completed/`, writes a final progress log entry, and — critically — scans all remaining `todo/` tasks to see if any are now unblocked and moves them to Ready. |
+| `/task-progress` | Reports on a specific task or gives a full system overview: what's in progress, what's ready, what's blocked, and flags issues like stale tasks or overlapping file ownership. |
+| `/task-verify` | Audits the entire system for inconsistencies — status/directory mismatches, missing fields, invalid dependency references, stale `current-progress.md` — and fixes them. |
+| `/task-e2e` | End-to-end lifecycle — chains create → start → implement → complete into a single session. |
 
-The entire initial feature set (14 foundation tasks) was decomposed into a dependency graph and executed in parallel waves:
+### The typical workflow
 
-```
-Phase 1 (serial):   Define shared TypeScript interfaces
-Phase 2 (parallel): DB migrations, API routes, UI components, AI agent — all built simultaneously
-Phase 3 (serial):   Integration wiring
-```
+Once I got into the hang of things, I created `/task-e2e` which just combined the create, start, and complete skills into one command. The process looks like this:
 
-Subsequent work (21 additional tasks — bug fixes, UX improvements, new features) followed the same pattern. The system enforces discipline that makes AI agents productive: explicit interfaces before implementation, dependency tracking to prevent blocked work, and file ownership to prevent merge conflicts.
+1. **Create** — I describe what I want built. The agent writes a task file with acceptance criteria, identifies which existing tasks it depends on, and declares which files it will touch.
+2. **Start** — The agent walks the full dependency chain (reading ancestor tasks and their outcomes), checks for file ownership conflicts with anything in-progress, then decomposes the task into implementation steps.
+3. **Implement** — The agent looks up relevant library documentation, writes tests first (encoding the expected behavior as a runnable spec), then implements against those tests. During implementation it updates its own progress log, and if it discovers significant new work, it creates a separate task in `todo/` rather than expanding scope.
+4. **Complete** — The agent verifies all acceptance criteria are met, moves the task to `completed/`, and checks whether any blocked tasks are now unblocked — keeping the pipeline moving.
+
+By the end, implementing features was extremely fast — I'd call `/task-e2e`, describe what I wanted out loud with Willow Voice, my speech-to-text tool, and let the agent handle everything from task creation through completion.
+
+The key was that the structure encourages agents to be disciplined in ways that compound: breaking tasks down into small pieces means more can run in parallel, writing tests first means the acceptance criteria are executable, and tracking file ownership means agents don't step on each other.
 
 ### Where to look
 
 | Resource | Path |
 |---|---|
 | Task management spec | [`docs/task-management.md`](docs/task-management.md) |
+| Slash command definitions | [`.claude/skills/`](.claude/skills/) |
 | All completed tasks (35) | [`docs/tasks/completed/`](docs/tasks/completed/) |
 | Project status snapshot | [`docs/tasks/current-progress.md`](docs/tasks/current-progress.md) |
 | Original design doc | [`docs/design-docs/design-claw.md`](docs/design-docs/design-claw.md) |

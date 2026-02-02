@@ -21,6 +21,10 @@ vi.mock("@/lib/db/workspaces", () => ({
     mockGetOrCreateWorkspace(...args),
 }));
 
+beforeEach(() => {
+  process.env.NEXT_PUBLIC_SITE_URL = "http://localhost:3000";
+});
+
 const { GET } = await import("./route");
 
 function makeRequest(params: string) {

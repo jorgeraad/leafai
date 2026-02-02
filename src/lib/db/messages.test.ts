@@ -29,16 +29,14 @@ function createQueryMock(resolvedValue: { data: unknown; error: unknown }) {
     chain[m] = vi.fn(() => chain)
   }
   chain.single = vi.fn(() => Promise.resolve(resolvedValue))
-  // For non-single queries (like listMessages, completeAssistantMessage)
-  // We need eq to also resolve for update chains
   chain.from = vi.fn(() => chain)
   return chain
 }
 
 let mockChain: ReturnType<typeof createQueryMock>
 
-vi.mock('@/lib/supabase/server', () => ({
-  createClient: vi.fn(async () => mockChain),
+vi.mock('@/lib/supabase/admin', () => ({
+  createAdminClient: vi.fn(() => mockChain),
 }))
 
 beforeEach(() => {
@@ -60,8 +58,8 @@ describe('createPendingAssistantMessage', () => {
   it('creates a pending assistant message', async () => {
     mockChain = createQueryMock({ data: mockAssistantMessageRow, error: null })
     vi.resetModules()
-    vi.mock('@/lib/supabase/server', () => ({
-      createClient: vi.fn(async () => mockChain),
+    vi.mock('@/lib/supabase/admin', () => ({
+      createAdminClient: vi.fn(() => mockChain),
     }))
     const { createPendingAssistantMessage } = await import('./messages')
     const msg = await createPendingAssistantMessage('cs-1', 'run-1')
@@ -78,14 +76,13 @@ describe('listMessages', () => {
     for (const m of methods) {
       listChain[m] = vi.fn(() => listChain)
     }
-    // order() is the terminal call for list queries (no .single())
     listChain.order = vi.fn(() => Promise.resolve({ data: [mockUserMessageRow, mockAssistantMessageRow], error: null }))
     listChain.from = vi.fn(() => listChain)
     mockChain = listChain as ReturnType<typeof createQueryMock>
 
     vi.resetModules()
-    vi.mock('@/lib/supabase/server', () => ({
-      createClient: vi.fn(async () => mockChain),
+    vi.mock('@/lib/supabase/admin', () => ({
+      createAdminClient: vi.fn(() => mockChain),
     }))
     const { listMessages } = await import('./messages')
     const msgs = await listMessages('cs-1')
@@ -102,14 +99,13 @@ describe('completeAssistantMessage', () => {
     for (const m of methods) {
       updateChain[m] = vi.fn(() => updateChain)
     }
-    // eq() is terminal for update (resolves)
     updateChain.eq = vi.fn(() => Promise.resolve({ error: null }))
     updateChain.from = vi.fn(() => updateChain)
     mockChain = updateChain as ReturnType<typeof createQueryMock>
 
     vi.resetModules()
-    vi.mock('@/lib/supabase/server', () => ({
-      createClient: vi.fn(async () => mockChain),
+    vi.mock('@/lib/supabase/admin', () => ({
+      createAdminClient: vi.fn(() => mockChain),
     }))
     const { completeAssistantMessage } = await import('./messages')
     await expect(completeAssistantMessage('msg-2', [{ type: 'text', text: 'Response' }])).resolves.toBeUndefined()
@@ -128,8 +124,8 @@ describe('failAssistantMessage', () => {
     mockChain = updateChain as ReturnType<typeof createQueryMock>
 
     vi.resetModules()
-    vi.mock('@/lib/supabase/server', () => ({
-      createClient: vi.fn(async () => mockChain),
+    vi.mock('@/lib/supabase/admin', () => ({
+      createAdminClient: vi.fn(() => mockChain),
     }))
     const { failAssistantMessage } = await import('./messages')
     await expect(failAssistantMessage('msg-2')).resolves.toBeUndefined()

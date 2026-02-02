@@ -20,6 +20,14 @@ vi.mock('@/lib/db', () => ({
 
 const mockStart = vi.fn()
 
+vi.mock('next/server', async (importOriginal) => {
+  const actual = await importOriginal() as Record<string, unknown>
+  return {
+    ...actual,
+    after: vi.fn((fn: () => void) => { /* no-op in tests */ }),
+  }
+})
+
 vi.mock('workflow/api', () => ({
   start: (...args: unknown[]) => mockStart(...args),
 }))
@@ -72,7 +80,7 @@ describe('POST /api/chat', () => {
     })
 
     const mockReadable = new ReadableStream()
-    mockStart.mockResolvedValue({ runId: 'run-123', readable: mockReadable })
+    mockStart.mockResolvedValue({ runId: 'run-123', readable: mockReadable, returnValue: Promise.resolve({ messageId: 'ast1' }) })
     mockCreatePendingAssistantMessage.mockResolvedValue({
       id: 'ast1',
       role: 'assistant',
