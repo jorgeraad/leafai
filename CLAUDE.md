@@ -24,21 +24,36 @@ For setup instructions, prerequisites, and environment configuration, see `READM
 
 ```
 src/
-  app/              # Next.js App Router pages and API routes
-    auth/           # Auth callback and actions
-    login/          # Login page
-    signup/         # Registration page
-  components/       # Shared UI components
+  app/
+    (app)/w/[workspaceId]/        # Protected workspace routes (chat, settings)
+    (auth)/                       # Integration OAuth callbacks
+    api/chat/                     # Chat workflow API
+    api/runs/[runId]/             # Workflow reconnection endpoint
+    api/integrations/[provider]/  # Integration connect/disconnect
+    auth/                         # Supabase auth callback + server actions
+    login/ signup/                # Auth pages
+  components/
+    ui/                           # Radix UI primitives (button, input, card, …)
+    chat/                         # Chat header, input, message list, bubbles
+    sidebar/                      # Session list, navigation
+    integrations/                 # Integration cards
+  hooks/                          # useChatSessions, useChatStream
   lib/
-    supabase/       # Supabase client (client.ts) and server (server.ts) helpers
-  middleware.ts     # Supabase session refresh middleware
-docs/               # Design documents
+    ai/                           # Agent, tools, prompts, title generation
+    db/                           # DAL: workspaces, integrations, messages, sessions
+    google/                       # OAuth client, Drive API helpers
+    supabase/                     # Client, server, admin, middleware helpers
+    crypto.ts                     # AES-256-GCM token encryption
+    types.ts                      # Shared TypeScript types
+  middleware.ts                   # Session refresh on every request
+docs/                             # Design docs, task management
 supabase/
-  config.toml       # Local Supabase configuration
-  migrations/       # SQL migration files
+  config.toml                     # Local Supabase configuration
+  migrations/                     # SQL migration files (schema + RLS)
 scripts/
-  setup-env.sh      # Generates .env.local from local Supabase status
-  create-worktree.sh # Creates git worktrees in a sibling leaf-worktrees/ directory
+  setup-env.sh                    # Generates .env.local from supabase status
+  create-worktree.sh              # Git worktrees for parallel agent work
+  agent-name.sh                   # Random agent name generator
 ```
 
 ## Runtime & Package Manager

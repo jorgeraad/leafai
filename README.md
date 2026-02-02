@@ -1,8 +1,60 @@
 # Leaf AI
 
-A Next.js web app that lets users sign in with Google, connect a Google Drive folder, and chat with an AI agent that uses the folder contents as context.
+A Next.js web app that lets users sign in with Google, connect a Google Drive folder, and chat with an AI agent that uses the folder contents as context. The AI agent runs in a durable workflow so it survives disconnects, deployments, and serverless timeouts.
 
 See `docs/design-claude.md` for the full design document.
+
+---
+
+## Architecture
+
+```
+┌──────────────────────────────────────────────────────────────────────┐
+│                         Browser (React 19)                           │
+│                                                                      │
+│  ┌──────────┐  ┌────────────┐  ┌───────────────┐  ┌──────────────┐  │
+│  │ Login /  │  │  Sidebar   │  │   Chat View   │  │  Settings /  │  │
+│  │ Signup   │  │  Sessions  │  │  (streaming)  │  │ Integrations │  │
+│  └────┬─────┘  └─────┬──────┘  └───────┬───────┘  └──────┬───────┘  │
+└───────┼──────────────┼─────────────────┼─────────────────┼───────────┘
+        │              │                 │                  │
+        ▼              ▼                 ▼                  ▼
+┌──────────────────────────────────────────────────────────────────────┐
+│                     Next.js 16 API Routes (Bun)                      │
+│                                                                      │
+│  /auth/callback    /api/chat    /api/runs/[runId]    /api/integrations│
+│  /auth/actions     (POST→wf)   (GET→reconnect)      /[provider]     │
+└───────┬──────────────┬──────────────┬───────────────────┬────────────┘
+        │              │              │                    │
+   ┌────▼────┐   ┌─────▼──────────────▼──────┐    ┌──────▼───────┐
+   │Supabase │   │  Vercel Workflow Engine    │    │   Google     │
+   │  Auth   │   │                            │    │   Drive      │
+   │(Google  │   │  chatWorkflow              │    │   API v3     │
+   │ OAuth + │   │   ├─ fetchDriveContext     │    │              │
+   │ email)  │   │   ├─ loadHistory           │    │(googleapis)  │
+   │         │   │   ├─ runAgent (stream LLM) │    └──────────────┘
+   └────┬────┘   │   └─ saveResponse          │
+        │        └──────────────┬─────────────┘
+   ┌────▼────┐                  │
+   │Supabase │                  ▼
+   │Postgres │          ┌───────────────┐
+   │         │          │  LLM Provider │
+   │workspaces│         │  (OpenRouter → │
+   │members  │          │   Anthropic /  │
+   │integra- │          │   OpenAI)      │
+   │ tions   │          └───────────────┘
+   │sessions │
+   │messages │
+   └─────────┘
+```
+
+### Key Data Flow
+
+1. **Auth** — Google OAuth or email/password via Supabase Auth. Middleware refreshes sessions on every request.
+2. **Chat** — `POST /api/chat` saves the user message, starts a durable workflow, and returns an SSE stream.
+3. **Workflow** — Fetches Drive context (if connected), loads history, streams LLM response via AI SDK + OpenRouter, persists the result.
+4. **Reconnection** — If the user disconnects mid-stream, `GET /api/runs/[runId]` resumes from the last received token.
+5. **Integrations** — Google Drive is connected from Settings via a separate OAuth flow; tokens are encrypted at rest.
 
 ---
 
@@ -163,19 +215,42 @@ supabase status          # Show local Supabase service URLs and keys
 
 ```
 src/
-  app/              # Next.js App Router pages and API routes
-    auth/           # Auth callback and actions
-    login/          # Login page
-  components/       # Shared UI components
+  app/
+    (app)/                        # Protected workspace routes
+      w/[workspaceId]/            # Workspace root, chat, settings
+        chat/[chatId]/            # Individual chat view
+        settings/integrations/    # Google Drive connection
+    (auth)/                       # Integration OAuth callbacks
+    api/
+      chat/                       # POST → start chat workflow
+      runs/[runId]/               # GET → reconnect to workflow stream
+      integrations/[provider]/    # Connect/disconnect integrations
+    auth/                         # Supabase auth callback + server actions
+    login/                        # Login page (Google OAuth + email)
+    signup/                       # Registration page
+  components/
+    ui/                           # Radix UI primitives (button, input, card, …)
+    chat/                         # Chat header, input, message list, bubbles
+    sidebar/                      # Session list, navigation
+    integrations/                 # Integration cards
+    icons/                        # Leaf logo, Google icon
+  hooks/                          # useChatSessions, useChatStream
   lib/
-    supabase/       # Supabase client (client.ts) and server (server.ts) helpers
-  middleware.ts     # Supabase session refresh middleware
-docs/               # Design documents
+    ai/                           # Agent, tools, prompts, title generation
+    db/                           # DAL: workspaces, integrations, messages, sessions
+    google/                       # OAuth client, Drive API helpers
+    supabase/                     # Client, server, admin, middleware helpers
+    crypto.ts                     # AES-256-GCM encryption for tokens
+    types.ts                      # Shared TypeScript types
+  middleware.ts                   # Session refresh on every request
+docs/                             # Design docs, task management
 supabase/
-  config.toml       # Local Supabase configuration
-  migrations/       # SQL migration files
+  config.toml                     # Local Supabase configuration
+  migrations/                     # SQL migration files (schema + RLS)
 scripts/
-  setup-env.sh      # Generates .env.local from local Supabase status
+  setup-env.sh                    # Generates .env.local from supabase status
+  create-worktree.sh              # Git worktrees for parallel agent work
+  agent-name.sh                   # Random agent name generator
 ```
 
 ---
@@ -186,10 +261,13 @@ scripts/
 |---|---|
 | Framework | Next.js 16 (App Router) |
 | Runtime | Bun |
-| Auth | Supabase Auth (Google OAuth) |
-| Database | Supabase PostgreSQL |
-| AI | Vercel AI SDK |
+| Language | TypeScript 5 (strict) |
+| Auth | Supabase Auth (Google OAuth + email/password) |
+| Database | Supabase PostgreSQL (with RLS) |
+| AI | Vercel AI SDK (`ai` + `@ai-sdk/react`) via OpenRouter |
 | Durable Workflows | Vercel Workflow Dev Kit |
 | Google Integration | `googleapis` (Drive API v3) |
+| UI Components | Radix UI + shadcn/ui |
 | Styling | Tailwind CSS v4 |
+| Testing | Vitest + React Testing Library |
 | Deployment | Vercel |
