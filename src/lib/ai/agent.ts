@@ -20,7 +20,7 @@ export async function runAgent(params: RunAgentParams): Promise<AgentResult> {
 
   const result = streamText({
     model: openrouter("anthropic/claude-sonnet-4"),
-    system: buildSystemPrompt(context),
+    system: buildSystemPrompt(context, Object.keys(tools).length > 0),
     messages,
     tools: tools as Parameters<typeof streamText>[0]["tools"],
     stopWhen: stepCountIs(maxSteps),

@@ -35,6 +35,10 @@ vi.mock('@/lib/supabase/server', () => ({
   createClient: vi.fn(async () => mockChain),
 }))
 
+vi.mock('@/lib/supabase/admin', () => ({
+  createAdminClient: vi.fn(() => mockChain),
+}))
+
 beforeEach(() => {
   vi.clearAllMocks()
 })
@@ -56,6 +60,9 @@ describe('getIntegration', () => {
     }))
     vi.mock('@/lib/supabase/server', () => ({
       createClient: vi.fn(async () => mockChain),
+    }))
+    vi.mock('@/lib/supabase/admin', () => ({
+      createAdminClient: vi.fn(() => mockChain),
     }))
     const { getIntegration } = await import('./integrations')
     const result = await getIntegration('user-1', 'ws-1', 'google_drive')

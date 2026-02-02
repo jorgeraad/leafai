@@ -1,4 +1,5 @@
 import { createClient } from '@/lib/supabase/server'
+import { createAdminClient } from '@/lib/supabase/admin'
 import { encrypt, decrypt } from '@/lib/crypto'
 import type { Integration, IntegrationProvider, UpsertIntegrationParams } from '@/lib/types'
 
@@ -25,7 +26,7 @@ function toIntegration(row: IntegrationRow): Integration {
 }
 
 export async function getIntegration(userId: string, workspaceId: string, provider: IntegrationProvider): Promise<Integration | null> {
-  const supabase = await createClient()
+  const supabase = createAdminClient()
 
   const { data, error } = await supabase
     .from('integrations')

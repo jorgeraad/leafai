@@ -29,9 +29,9 @@ export async function chatWorkflow(
   'use workflow'
 
   const { history, assistantMessageId } = await loadHistory(chatSessionId)
-  const tools = await buildTools(userId, workspaceId)
+  const refreshToken = await getRefreshToken(userId, workspaceId)
 
-  const result = await runAgentStep(history, tools)
+  const result = await runAgentStep(history, refreshToken)
 
   if ('error' in result) {
     if (assistantMessageId) {
@@ -71,21 +71,25 @@ async function loadHistory(chatSessionId: string) {
   return { history, assistantMessageId: assistantMsg?.id ?? null }
 }
 
-async function buildTools(userId: string, workspaceId: string) {
+async function getRefreshToken(userId: string, workspaceId: string): Promise<string | null> {
   'use step'
   const integration = await getIntegration(userId, workspaceId, 'google_drive')
-  if (!integration) return {}
-  const drive = getDriveClient(integration.refreshToken)
-  return createDriveTools(drive)
+  if (!integration) return null
+  return integration.refreshToken
 }
 
 async function runAgentStep(
   history: Array<{ role: 'user' | 'assistant'; content: string }>,
-  tools: Record<string, unknown>,
+  refreshToken: string | null,
 ): Promise<AgentStepResult | AgentStepError> {
   'use step'
   const writable = getWritable()
   const writer = writable.getWriter()
+
+  // Build tools inside this step to avoid serializing Zod schemas across step boundaries
+  const tools = refreshToken
+    ? createDriveTools(getDriveClient(refreshToken))
+    : {}
 
   try {
     const result = await runAgent({
