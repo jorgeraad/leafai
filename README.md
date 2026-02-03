@@ -1,5 +1,9 @@
 # Leaf AI
 
+<a href="https://www.youtube.com/watch?v=Fz0oH-RWGpQ">
+  <img src="docs/demo-thumbnail.jpg" alt="Leaf AI Demo" width="600" />
+</a>
+
 An AI chat application that connects to your Google Drive and lets you have conversations grounded in your own documents. Built with Next.js 16, Supabase, and the Vercel AI SDK.
 
 The AI agent can search, list, and read files from your Drive on-demand — citing sources with links back to the original documents. Conversations run on durable workflows that survive disconnects, deployments, and serverless cold starts.
